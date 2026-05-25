@@ -1,122 +1,122 @@
-# Arquitetura mTLS BaaS — Documento Técnico
+# mTLS BaaS Architecture — Technical Document
 
-## 1. Conceitos Fundamentais
+## 1. Core Concepts
 
-### O que é mTLS?
+### What is mTLS?
 
-**mTLS (Mutual Transport Layer Security)** é uma extensão do TLS padrão onde **ambos os lados** — cliente e servidor — apresentam certificados X.509 para autenticação. No modelo BaaS:
+**mTLS (Mutual Transport Layer Security)** is a TLS extension where **both sides** — client and server — present X.509 certificates for authentication. In the BaaS model:
 
-- O **servidor** (Zuplo Gateway) apresenta seu certificado ao cliente (TLS padrão)
-- O **cliente** (parceiro/fintech) apresenta seu certificado ao servidor (o "mutual")
-- O gateway valida se o certificado do cliente foi assinado por uma CA confiável
+- The **server** (Zuplo Gateway) presents its certificate to the client (standard TLS)
+- The **client** (partner/fintech) presents its certificate to the server (the "mutual" part)
+- The gateway validates that the client certificate was signed by a trusted CA
 
 ```
-Cliente                    Gateway (Zuplo)
+Client                     Gateway (Zuplo)
   │                              │
   │──── ClientHello ────────────►│
-  │◄─── ServerHello + Cert ──────│  servidor apresenta seu cert
-  │──── ClientCert + Verify ────►│  cliente apresenta seu cert
-  │◄─── Finished ────────────────│  handshake concluido
-  │                              │  gateway validou cert do cliente
+  │◄─── ServerHello + Cert ──────│  server presents its cert
+  │──── ClientCert + Verify ────►│  client presents its cert
+  │◄─── Finished ────────────────│  handshake complete
+  │                              │  gateway validated client cert
   │──── HTTP Request ───────────►│
   │◄─── HTTP Response ───────────│
 ```
 
-### Por que usar no modelo BaaS?
+### Why use it in the BaaS model?
 
-| Benefício | Descrição |
-|-----------|-----------|
-| **Identidade forte** | Cada parceiro tem um certificado único e irrefutável |
-| **Sem senha no payload** | A autenticação ocorre na camada TLS |
-| **Revogação granular** | É possível revogar acesso de um parceiro sem afetar outros |
-| **Auditoria** | O Common Name do certificado identifica o parceiro em todos os logs |
-| **Zero-trust** | Alinha-se com arquiteturas zero-trust modernas |
+| Benefit | Description |
+|---------|-------------|
+| **Strong identity** | Each partner has a unique, non-repudiable certificate |
+| **No credentials in payload** | Authentication happens at the TLS layer |
+| **Granular revocation** | Revoke one partner's access without affecting others |
+| **Auditing** | The certificate CN identifies the partner in all logs |
+| **Zero-trust** | Aligns with modern zero-trust architectures |
 
 ---
 
-## 2. Hierarquia de Certificados (PKI)
+## 2. Certificate Hierarchy (PKI)
 
 ```
 Root CA (offline / air-gapped)
-│   Validade: 10 anos
-│   Key: RSA 4096 ou ECDSA P-384
-│   Armazenamento: HSM ou K8s Secret cifrado
+│   Validity: 10 years
+│   Key: RSA 4096 or ECDSA P-384
+│   Storage: HSM or encrypted K8s Secret
 │
 └── Intermediate CA (online / Kubernetes)
-    │   Validade: 1 ano (renovação automática via cert-manager)
+    │   Validity: 1 year (automatic renewal via cert-manager)
     │   Key: ECDSA P-256
-    │   Armazenamento: K8s Secret no namespace pki-system
+    │   Storage: K8s Secret in pki-system namespace
     │
     ├── Leaf Certificate — Tenant A
     │       CN: tenant-a.api.baas.io
-    │       Validade: 90 dias
+    │       Validity: 90 days
     │       SAN: tenant-a.api.baas.io
     │
     ├── Leaf Certificate — Tenant B
     │       CN: tenant-b.api.baas.io
-    │       Validade: 90 dias
+    │       Validity: 90 days
     │
-    └── Leaf Certificate — Tenant C (revogado)
+    └── Leaf Certificate — Tenant C (revoked)
             Status: REVOKED (CRL entry)
 ```
 
-### Por que Root CA offline?
+### Why keep the Root CA offline?
 
-A Root CA nunca deve estar acessível pela rede. Se comprometida, toda a hierarquia de confiança é inválida. O processo seguro é:
+The Root CA must never be network-accessible. If compromised, the entire trust hierarchy is invalidated. The secure process is:
 
-1. Gerar Root CA em máquina air-gapped (sem rede)
-2. Assinar a Intermediate CA manualmente
-3. Carregar apenas o certificado da Intermediate CA no cluster
-4. Manter a chave privada da Root CA em mídia física segura (HSM, USB criptografado)
+1. Generate Root CA on an air-gapped machine (no network)
+2. Manually sign the Intermediate CA
+3. Load only the Intermediate CA certificate into the cluster
+4. Store the Root CA private key on secure offline media (HSM, encrypted USB)
 
 ---
 
-## 3. Componentes da Plataforma
+## 3. Platform Components
 
 ### 3.1 Step-CA (Smallstep Certificate Authority)
 
-**Por que Step-CA?**
-- Open-source, battle-tested, usado por grandes empresas
-- Suporta ACME, JWK, x5c, SCEP, OAuth/OIDC
-- API REST nativa para automação
-- Provisionadores configuráveis por tenant
-- CRL e OCSP out-of-the-box
+**Why Step-CA?**
+- Open-source, battle-tested, used by large organizations
+- Supports ACME, JWK, x5c, SCEP, OAuth/OIDC
+- Native REST API for automation
+- Configurable provisioners per tenant
+- Built-in CRL and OCSP
 
-**Configuração no cluster:**
+**Cluster configuration:**
 ```
 Namespace: pki-system
 Deployment: step-ca
-Service: step-ca-svc:9000 (interno ao cluster)
-PVC: step-ca-data (armazenamento de estado)
-Secret: step-ca-password (senha da CA)
-ConfigMap: step-ca-config (configuração ca.json)
+Service: step-ca-svc:9000 (cluster-internal)
+PVC: step-ca-data (state storage)
+Secret: step-ca-password (CA password)
+ConfigMap: step-ca-config (ca.json configuration)
 ```
 
 ### 3.2 cert-manager
 
-**Responsabilidade:** Gerenciar o ciclo de vida dos certificados Kubernetes nativamente.
+**Responsibility:** Manage the Kubernetes-native certificate lifecycle.
 
-- Renova automaticamente certificados antes do vencimento
-- Integra com Step-CA via `StepIssuer` (CRD)
-- Emite certificados para serviços internos do cluster (ingress, serviços)
-- Cria `Certificate` resources que são consumidos como Secrets
+- Automatically renews certificates before expiry
+- Integrates with Step-CA via `StepIssuer` (CRD)
+- Issues certificates for internal cluster services (ingress, services)
+- Creates `Certificate` resources consumed as Secrets
 
 ### 3.3 Certificate Service API
 
-**REST API** (Node.js/TypeScript) que expõe operações de PKI para parceiros:
+**REST API** (Node.js/TypeScript) exposing PKI operations to partners:
 
-| Endpoint | Método | Descrição |
-|----------|--------|-----------|
-| `POST /v1/certificates` | POST | Emite novo certificado para tenant |
-| `GET /v1/certificates/{id}` | GET | Consulta certificado |
-| `DELETE /v1/certificates/{id}` | DELETE | Revoga certificado |
-| `GET /v1/certificates` | GET | Lista certificados do tenant |
-| `POST /v1/certificates/{id}/renew` | POST | Renova certificado |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `POST /v1/certificates` | POST | Issue new certificate for tenant |
+| `GET /v1/certificates/{id}` | GET | Get certificate details |
+| `DELETE /v1/certificates/{id}` | DELETE | Revoke certificate |
+| `GET /v1/certificates` | GET | List tenant certificates |
+| `POST /v1/certificates/{id}/renew` | POST | Renew certificate |
 | `GET /v1/health` | GET | Health check |
 
 ### 3.4 Zuplo API Gateway
 
-**Responsabilidade:** Ponto de entrada para APIs protegidas por mTLS.
+**Responsibility:** Entry point for mTLS-protected APIs.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -125,22 +125,22 @@ ConfigMap: step-ca-config (configuração ca.json)
 │  Request ──► [mTLS Policy] ──► [Rate Limit] ──► Backend │
 │                    │                                      │
 │              [Cert Validate]                             │
-│              - Assinado pela CA?                         │
-│              - Dentro da validade?                       │
-│              - Nao revogado (CRL/OCSP)?                  │
-│              - CN na allowlist?                          │
+│              - Signed by trusted CA?                     │
+│              - Within validity period?                   │
+│              - Not revoked (CRL/OCSP)?                   │
+│              - CN in allowlist?                          │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 4. Infraestrutura Kubernetes (Linode LKE)
+## 4. Kubernetes Infrastructure (Linode LKE)
 
-### Topologia do Cluster
+### Cluster Topology
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  LKE Cluster — regiao: us-east (Newark)                         │
+│  LKE Cluster — region: us-east (Newark)                         │
 │                                                                  │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌───────────────┐   │
 │  │  Node Pool: PKI │  │  Node Pool: App │  │  Node Pool:   │   │
@@ -152,7 +152,7 @@ ConfigMap: step-ca-config (configuração ca.json)
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │  Namespaces                                              │    │
 │  │  ├── pki-system     (step-ca, cert-manager)             │    │
-│  │  ├── certificate-service  (API REST)                    │    │
+│  │  ├── certificate-service  (REST API)                    │    │
 │  │  ├── monitoring     (prometheus, grafana)               │    │
 │  │  └── ingress-nginx  (ingress controller)                │    │
 │  └─────────────────────────────────────────────────────────┘    │
@@ -163,135 +163,135 @@ ConfigMap: step-ca-config (configuração ca.json)
 
 ### Node Pools
 
-| Pool | Tipo Linode | vCPU | RAM | Propósito |
-|------|-------------|------|-----|-----------|
+| Pool | Linode Type | vCPU | RAM | Purpose |
+|------|-------------|------|-----|---------|
 | pki | g6-dedicated-2 | 4 | 8GB | Step-CA, cert-manager |
 | app | g6-standard-4 | 4 | 8GB | Certificate Service API (x3) |
 | monitoring | g6-standard-2 | 2 | 4GB | Prometheus + Grafana |
 
-### Por que Dedicated para PKI?
+### Why Dedicated Nodes for PKI?
 
-Operações criptográficas (geração de chaves, assinatura) são CPU-intensivas. Nós dedicados garantem que outros workloads não causem latência nas operações da CA.
+Cryptographic operations (key generation, signing) are CPU-intensive. Dedicated nodes guarantee that other workloads do not cause latency in CA operations.
 
 ---
 
-## 5. Fluxo de Onboarding de Parceiro BaaS
+## 5. BaaS Partner Onboarding Flow
 
 ```
-Parceiro (Fintech)         Certificate Service          Step-CA
+Partner (Fintech)          Certificate Service          Step-CA
        │                          │                         │
-       │  1. Solicita onboarding  │                         │
+       │  1. Request onboarding   │                         │
        │──POST /v1/tenants ──────►│                         │
-       │                          │ 2. Valida dados         │
+       │                          │ 2. Validate tenant data │
        │◄── {tenant_id} ──────────│                         │
        │                          │                         │
-       │  3. Requisita cert mTLS  │                         │
+       │  3. Request mTLS cert    │                         │
        │──POST /v1/certificates──►│                         │
        │  Body: {cn, org, ttl}    │                         │
-       │                          │ 4. Gera CSR             │
+       │                          │ 4. Generate CSR         │
        │                          │──sign(CSR)─────────────►│
        │                          │◄── signed cert ─────────│
        │                          │                         │
-       │  5. Certificado entregue │                         │
+       │  5. Certificate delivered│                         │
        │◄── {cert_pem, chain_pem, │                         │
        │     private_key_pem,     │                         │
        │     cert_id, expires_at} │                         │
        │                          │                         │
-       │  6. Configura client mTLS│                         │
-       │     (armazena cert + key)│                         │
+       │  6. Configure mTLS client│                         │
+       │     (store cert + key)   │                         │
        │                          │                         │
-       │  7. Chama API via mTLS   │                         │
+       │  7. Call API via mTLS    │                         │
        │──TLS Handshake (cert)──────────────────────────────────►Zuplo
        │◄────────────────────────────────────────────────────────────│
 ```
 
 ---
 
-## 6. Segurança e Compliance
+## 6. Security and Compliance
 
-### Modelo de Ameaças
+### Threat Model
 
-| Ameaça | Mitigação |
+| Threat | Mitigation |
 |--------|-----------|
-| Chave privada da Root CA comprometida | Root CA offline, nunca no cluster |
-| Certificado de parceiro comprometido | Revogação imediata via CRL/OCSP |
-| Acesso indevido à CA API | Autenticação forte para operadores |
-| Man-in-the-middle | mTLS em todas as comunicações |
-| Replay attack | Certificados com TTL curto (90 dias) |
-| Enumeração de tenant IDs | UUIDs aleatórios, não sequenciais |
+| Root CA private key compromised | Root CA offline, never in cluster |
+| Partner certificate compromised | Immediate revocation via CRL/OCSP |
+| Unauthorized CA API access | Strong authentication for operators |
+| Man-in-the-middle | mTLS on all communications |
+| Replay attack | Short certificate TTL (90 days) |
+| Tenant ID enumeration | Random UUIDs, non-sequential |
 
-### Rotação de Certificados
+### Certificate Rotation
 
 ```
-T=0:   Certificado emitido (TTL=90d)
-T=75d: cert-manager detecta < 25% TTL restante → solicita renovação
-T=77d: Novo certificado emitido
-T=80d: Parceiro notificado via webhook
-T=90d: Certificado original expira
+T=0:   Certificate issued (TTL=90d)
+T=75d: cert-manager detects < 25% TTL remaining → requests renewal
+T=77d: New certificate issued
+T=80d: Partner notified via webhook
+T=90d: Original certificate expires
 ```
 
-### CRL e OCSP
+### CRL and OCSP
 
-- **CRL**: Lista de revogação publicada a cada 24h no endpoint `/crl`
-- **OCSP**: Resposta em tempo real via Step-CA (endpoint `/ocsp`)
-- Zuplo verifica OCSP em cada requisição (cache de 5 min)
+- **CRL**: Revocation list published every 24h at the `/crl` endpoint
+- **OCSP**: Real-time response via Step-CA (endpoint `/ocsp`)
+- Zuplo checks OCSP on every request (5-minute cache)
 
 ---
 
-## 7. Observabilidade
+## 7. Observability
 
-### Métricas (Prometheus)
+### Metrics (Prometheus)
 
-| Métrica | Descrição |
-|---------|-----------|
-| `mtls_certificates_issued_total` | Total de certificados emitidos |
-| `mtls_certificates_revoked_total` | Total de certificados revogados |
-| `mtls_tls_handshake_errors_total` | Erros de handshake mTLS no Zuplo |
-| `mtls_cert_expiry_seconds` | Tempo até expiração (por tenant) |
-| `step_ca_sign_duration_seconds` | Latência de assinatura na CA |
+| Metric | Description |
+|--------|-------------|
+| `mtls_certificates_issued_total` | Total certificates issued |
+| `mtls_certificates_revoked_total` | Total certificates revoked |
+| `mtls_tls_handshake_errors_total` | mTLS handshake errors at Zuplo |
+| `mtls_cert_expiry_seconds` | Time until expiry (per tenant) |
+| `step_ca_sign_duration_seconds` | CA signing latency |
 
-### Alertas
+### Alerts
 
-- `CertExpiryWarning`: certificado expira em < 15 dias sem renovação
-- `CARootExpiry`: Root CA expira em < 180 dias
-- `HighRevocationRate`: > 10 revogações em 1h (possível incidente)
-- `CAUnavailable`: Step-CA sem resposta por > 30s
+- `CertExpiryWarning`: certificate expires in < 15 days without renewal
+- `CARootExpiry`: Root CA expires in < 180 days
+- `HighRevocationRate`: > 10 revocations in 1h (possible incident)
+- `CAUnavailable`: Step-CA unresponsive for > 30s
 
 ---
 
-## 8. Decisões de Arquitetura (ADRs)
+## 8. Architecture Decision Records (ADRs)
 
 ### ADR-001: Step-CA vs. HashiCorp Vault PKI
 
-**Decisão:** Usar Step-CA como CA principal.
+**Decision:** Use Step-CA as the primary CA.
 
-**Razão:** Step-CA é focado exclusivamente em PKI, mais simples de operar, open-source sem enterprise lock-in. Vault PKI é mais adequado quando Vault já é parte do stack.
+**Rationale:** Step-CA is exclusively focused on PKI, simpler to operate, open-source with no enterprise lock-in. Vault PKI is better suited when Vault is already part of the stack.
 
-**Trade-off:** Vault tem integração mais rica com secrets management geral. Step-CA pode ser integrado ao Vault como backend de storage futuramente.
+**Trade-off:** Vault offers richer integration with general secrets management. Step-CA can be integrated with Vault as a storage backend in the future.
 
-### ADR-002: cert-manager vs. operações manuais
+### ADR-002: cert-manager vs. manual operations
 
-**Decisão:** Usar cert-manager para certificados Kubernetes-nativos.
+**Decision:** Use cert-manager for Kubernetes-native certificates.
 
-**Razão:** Automação de renovação elimina riscos de certificados expirados em serviços internos.
+**Rationale:** Automated renewal eliminates the risk of expired certificates on internal services.
 
-### ADR-003: ECDSA P-256 vs. RSA 2048 para leaf certs
+### ADR-003: ECDSA P-256 vs. RSA 2048 for leaf certs
 
-**Decisão:** ECDSA P-256 para Intermediate CA e leaf certs.
+**Decision:** ECDSA P-256 for Intermediate CA and leaf certs.
 
-**Razão:** Equivalente em segurança ao RSA 3072, mas chaves menores (64 bytes vs. 256 bytes), handshake TLS mais rápido.
+**Rationale:** Equivalent security to RSA 3072 with smaller keys (64 bytes vs. 256 bytes) and faster TLS handshakes.
 
-### ADR-004: TTL de 90 dias para certificados de parceiros
+### ADR-004: 90-day TTL for partner certificates
 
-**Decisão:** TTL máximo de 90 dias, renovação automática a 25% do TTL restante.
+**Decision:** Maximum TTL of 90 days, automatic renewal at 25% of remaining TTL.
 
-**Razão:** Alinhamento com práticas Let's Encrypt. Limita janela de exposição de chave comprometida.
+**Rationale:** Aligns with Let's Encrypt / CA/Browser Forum practices. Limits the exposure window for a compromised key.
 
 ---
 
 ## 9. Runbooks
 
-### Emitir certificado de emergência
+### Issue an emergency certificate
 
 ```bash
 ./scripts/issue-cert.sh \
@@ -301,19 +301,19 @@ T=90d: Certificado original expira
   --emergency
 ```
 
-### Revogar certificado comprometido
+### Revoke a compromised certificate
 
 ```bash
 ./scripts/revoke-cert.sh --cert-id CERT_UUID --reason keyCompromise
-# Forcar atualizacao da CRL imediatamente:
+# Force immediate CRL update:
 kubectl exec -n pki-system deploy/step-ca -- step ca revoke --offline
 ```
 
-### Renovar Intermediate CA
+### Renew the Intermediate CA
 
 ```bash
-# cert-manager faz isso automaticamente.
-# Em caso de falha manual:
+# cert-manager does this automatically.
+# If it fails, trigger manually:
 kubectl delete secret step-ca-intermediate-cert -n pki-system
-# cert-manager recria automaticamente via CertificateRequest
+# cert-manager will recreate it automatically via CertificateRequest
 ```

@@ -1,7 +1,6 @@
-# Helm values para Step-CA (smallstep/step-certificates)
+# Helm values for Step-CA (smallstep/step-certificates)
 # Chart: smallstep/step-certificates
 
-# Configuração da CA
 ca:
   name: "BaaS mTLS Root CA"
   address: ":9000"
@@ -14,9 +13,9 @@ ca:
     type: badgerV2
     dataSource: /home/step/db
 
-# Provisioners configurados
+# Configured provisioners
 provisioners:
-  # JWK para uso pelo cert-manager
+  # JWK for use by cert-manager
   - name: cert-manager
     type: JWK
     options:
@@ -24,20 +23,17 @@ provisioners:
       maxTLSDur: 90d
       defaultTLSDur: 90d
 
-  # ACME para renovação automática
+  # ACME for automatic renewal
   - name: acme
     type: ACME
 
-  # x5c para emissão com certificado de cliente
+  # x5c for issuance with client certificate
   - name: x5c-provisioner
     type: X5C
     options:
-      roots: []  # preenchido com o cert do Root CA no setup
+      roots: []  # filled with Root CA cert during setup
 
-# Chave da CA — gerada no init
-# NÃO incluir chaves reais aqui
-
-# Persistência
+# Persistence
 persistence:
   enabled: true
   storageClass: "linode-block-storage-retain"
@@ -45,7 +41,7 @@ persistence:
   accessModes:
     - ReadWriteOnce
 
-# Fixar nos nós PKI
+# Pin to PKI nodes
 nodeSelector:
   role: pki
 
@@ -55,10 +51,10 @@ tolerations:
     value: "pki"
     effect: "NoSchedule"
 
-# HA: 2 réplicas (step-ca suporta via shared storage)
+# HA: 2 replicas (step-ca supports via shared storage)
 replicaCount: 2
 
-# Recursos para operações criptográficas
+# Resources for cryptographic operations
 resources:
   requests:
     cpu: 500m
@@ -67,30 +63,25 @@ resources:
     cpu: 2000m
     memory: 1Gi
 
-# Service
 service:
   type: ClusterIP
   port: 9000
   targetPort: 9000
 
-# OCSP endpoint
 ocsp:
   enabled: true
   port: 8080
 
-# CRL
 crl:
   enabled: true
   cacheDuration: 24h
   renewBefore: 6h
 
-# Métricas Prometheus
 metrics:
   enabled: true
   path: /metrics
   port: 9100
 
-# Segurança
 securityContext:
   runAsNonRoot: true
   runAsUser: 1000

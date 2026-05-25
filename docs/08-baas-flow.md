@@ -1,20 +1,20 @@
-# 08 — Fluxo BaaS Completo
+# 08 — Full BaaS Flow
 
-## Jornada do Parceiro (do zero ao mTLS em produção)
+## Partner Journey (from zero to mTLS in production)
 
-### Fase 1: Onboarding
+### Phase 1: Onboarding
 
 ```
-Parceiro                API                    Back-office
-   │                     │                          │
-   │  Cadastro           │                          │
-   │──POST /v1/tenants──►│                          │
-   │  {name, cnpj, email}│                          │
-   │                     │  Valida dados            │
-   │                     │─────────────────────────►│
-   │                     │◄─────────────────────────│
-   │◄── {tenant_id} ─────│                          │
-   │                     │                          │
+Partner                  API                    Back-office
+   │                      │                          │
+   │  Registration        │                          │
+   │──POST /v1/tenants───►│                          │
+   │  {name, cnpj, email} │                          │
+   │                      │  Validate data           │
+   │                      │─────────────────────────►│
+   │                      │◄─────────────────────────│
+   │◄── {tenant_id} ──────│                          │
+   │                      │                          │
 ```
 
 **Request:**
@@ -24,9 +24,9 @@ Content-Type: application/json
 
 {
   "name": "Fintech Alpha",
-  "legalName": "Fintech Alpha Pagamentos S.A.",
+  "legalName": "Fintech Alpha Payments Inc",
   "cnpj": "12345678000190",
-  "contactEmail": "tech@fintechalpha.com.br"
+  "contactEmail": "tech@fintechalpha.com"
 }
 ```
 
@@ -42,18 +42,18 @@ Content-Type: application/json
 
 ---
 
-### Fase 2: Emissão do Certificado mTLS
+### Phase 2: mTLS Certificate Issuance
 
 ```
-Parceiro              Certificate Service       Step-CA
+Partner              Certificate Service       Step-CA
    │                         │                     │
    │  POST /v1/certificates  │                     │
    │──X-Tenant-Id: uuid ────►│                     │
    │  {cn, org, ttl}         │                     │
-   │                         │  1. Gera par de     │
-   │                         │     chaves ECDSA     │
-   │                         │  2. Cria CSR         │
-   │                         │  3. Obtém token OTT  │
+   │                         │  1. Generate ECDSA  │
+   │                         │     key pair        │
+   │                         │  2. Create CSR      │
+   │                         │  3. Get OTT token   │
    │                         │─────sign(CSR)───────►│
    │                         │◄────signed cert ─────│
    │                         │                     │
@@ -68,8 +68,8 @@ X-Tenant-Id: 550e8400-e29b-41d4-a716-446655440000
 
 {
   "commonName": "fintech-alpha.api.baas.io",
-  "organization": "Fintech Alpha Pagamentos S.A.",
-  "country": "BR",
+  "organization": "Fintech Alpha Payments Inc",
+  "country": "US",
   "san": ["fintech-alpha.api.baas.io"],
   "ttl": "2160h"
 }
@@ -90,21 +90,21 @@ X-Tenant-Id: 550e8400-e29b-41d4-a716-446655440000
 }
 ```
 
-> **IMPORTANTE:** Armazene `privateKeyPem` em local seguro. Esta é a única vez que a chave privada é retornada.
+> **IMPORTANT:** Store `privateKeyPem` in a secure location. This is the only time the private key is returned.
 
 ---
 
-### Fase 3: Configuração do Cliente
+### Phase 3: Client Configuration
 
-O parceiro salva o certificado e chave privada:
+The partner saves the certificate and private key:
 
 ```bash
-# Salvar certificado e chave
+# Save certificate and key
 echo "$CERT_PEM" > client.crt
 echo "$KEY_PEM"  > client.key
 chmod 600 client.key
 
-# Verificar certificado
+# Verify the certificate
 openssl x509 -in client.crt -noout -text | grep -E "Subject:|Not After:"
 # Subject: CN=fintech-alpha.api.baas.io, O=Fintech Alpha...
 # Not After: Aug 23 10:05:00 2025 GMT
@@ -112,17 +112,17 @@ openssl x509 -in client.crt -noout -text | grep -E "Subject:|Not After:"
 
 ---
 
-### Fase 4: Chamada de API via mTLS
+### Phase 4: API Call via mTLS
 
 ```
-Parceiro                      Ingress NGINX          Zuplo           Backend
+Partner                       Ingress NGINX          Zuplo           Backend
    │                               │                    │                │
    │──TLS ClientHello─────────────►│                    │                │
    │◄──ServerHello + ServerCert────│                    │                │
    │──ClientCert + ClientVerify───►│                    │                │
    │   (fintech-alpha.api.baas.io) │                    │                │
-   │                               │ Valida contra CA   │                │
-   │                               │ Injeta headers     │                │
+   │                               │ Validate vs CA     │                │
+   │                               │ Inject headers     │                │
    │◄──TLS Finished────────────────│                    │                │
    │                               │                    │                │
    │──GET /v1/certificates─────────────────────────────►│                │
@@ -134,7 +134,7 @@ Parceiro                      Ingress NGINX          Zuplo           Backend
    │◄──200 OK──────────────────────────────────────────────────────────── │
 ```
 
-**Request com mTLS:**
+**Request with mTLS:**
 ```bash
 curl --cert ./client.crt \
      --key  ./client.key \
@@ -144,32 +144,32 @@ curl --cert ./client.crt \
 
 ---
 
-### Fase 5: Renovação Automática (90 dias antes do vencimento)
+### Phase 5: Automatic Renewal (before the 90-day expiry)
 
 ```
-cert-manager           Step-CA           Parceiro
+cert-manager           Step-CA           Partner
      │                    │                  │
-     │ Detecta TTL < 25%  │                  │
+     │ Detects TTL < 25%  │                  │
      │──CertificateRequest►│                  │
      │◄──signed cert───────│                  │
      │                    │                  │
-     │  Atualiza Secret K8s│                  │
-     │                    │  Notificação     │
+     │  Updates K8s Secret │                  │
+     │                    │  Notification    │
      │                    │──webhook────────►│
-     │                    │  (novo cert)     │
+     │                    │  (new cert)      │
 ```
 
-A renovação para certificados de parceiros **não é automática** — o parceiro deve:
-1. Receber a notificação de vencimento (webhook ou e-mail)
-2. Chamar `POST /v1/certificates/{id}/renew`
-3. Ou chamar `POST /v1/certificates` para emitir um novo certificado
+Renewal for partner certificates **is not automatic** — the partner must:
+1. Receive the expiry notification (webhook or email)
+2. Call `POST /v1/certificates/{id}/renew`
+3. Or call `POST /v1/certificates` to issue a new certificate
 
 ---
 
-### Fase 6: Revogação
+### Phase 6: Revocation
 
 ```
-Parceiro              Certificate Service       Step-CA        Zuplo
+Partner              Certificate Service       Step-CA        Zuplo
    │                         │                     │              │
    │  DELETE /v1/certs/{id}  │                     │              │
    │──X-Tenant-Id: uuid ────►│                     │              │
@@ -177,11 +177,11 @@ Parceiro              Certificate Service       Step-CA        Zuplo
    │                         │──revoke(serial)────►│              │
    │                         │◄──ok────────────────│              │
    │◄──204 No Content────────│                     │              │
-   │                         │  CRL atualizada     │              │
-   │                         │  OCSP responde      │              │
+   │                         │  CRL updated        │              │
+   │                         │  OCSP responds      │              │
    │                         │  "revoked"          │              │
    │                         │                     │              │
-   │  Tenta usar cert revogado│                    │              │
+   │  Attempt to use revoked cert                  │              │
    │──mTLS request───────────────────────────────►│              │
    │                         │                     │ OCSP check  │
    │                         │                     │◄────────────│
@@ -191,13 +191,13 @@ Parceiro              Certificate Service       Step-CA        Zuplo
 
 ---
 
-## Considerações de segurança por fase
+## Security considerations per phase
 
-| Fase | Risco | Mitigação |
-|------|-------|-----------|
-| Emissão | Impersonação de tenant | Autenticação forte no endpoint /v1/certificates |
-| Entrega do cert | Intercepção da chave privada | HTTPS obrigatório + key entregue apenas 1x |
-| Armazenamento | Vazamento da chave | HSM ou secret manager no lado do parceiro |
-| Uso (mTLS) | Man-in-the-middle | mTLS bidirecional |
-| Renovação | Cert expirado em produção | Notificação 30 dias antes + renovação automática |
-| Revogação | Delay na propagação | OCSP em tempo real + cache curto (5 min) |
+| Phase | Risk | Mitigation |
+|-------|------|-----------|
+| Issuance | Tenant impersonation | Strong authentication on /v1/certificates |
+| Delivery | Private key interception | HTTPS required + key delivered only once |
+| Storage | Key leakage | HSM or secret manager on partner side |
+| Usage (mTLS) | Man-in-the-middle | Mutual TLS |
+| Renewal | Expired cert in production | 30-day notification + automatic renewal |
+| Revocation | Propagation delay | Real-time OCSP + short cache (5 min) |

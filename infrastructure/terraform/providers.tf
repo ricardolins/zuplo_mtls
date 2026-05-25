@@ -16,9 +16,9 @@ terraform {
     }
   }
 
-  # Backend remoto recomendado para producao:
+  # Recommended remote backend for production:
   # backend "s3" {
-  #   bucket = "seu-bucket-tfstate"
+  #   bucket = "your-tfstate-bucket"
   #   key    = "mtls-baas/terraform.tfstate"
   #   region = "us-east-1"
   # }

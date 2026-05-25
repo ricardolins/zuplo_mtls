@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
-# issue-cert.sh — Emite um certificado mTLS via Certificate Service API
+# issue-cert.sh — Issues an mTLS certificate via the Certificate Service API
 set -euo pipefail
 
 CERT_SERVICE_URL="${CERT_SERVICE_URL:-https://certs.baas.io}"
 TENANT_ID=""
 COMMON_NAME=""
 ORGANIZATION="BaaS Partner"
-COUNTRY="BR"
+COUNTRY="US"
 TTL="2160h"
 OUTPUT_DIR="./certs-output"
 EMERGENCY=false
 
 usage() {
-  echo "Uso: $0 --tenant-id UUID --common-name CN [opcoes]"
+  echo "Usage: $0 --tenant-id UUID --common-name CN [options]"
   echo ""
-  echo "Opcoes:"
-  echo "  --tenant-id     UUID do tenant (obrigatório)"
-  echo "  --common-name   Common Name do certificado (obrigatório)"
-  echo "  --org           Organização (padrão: BaaS Partner)"
-  echo "  --country       País em 2 letras (padrão: BR)"
-  echo "  --ttl           Validade, ex: 2160h, 90d (padrão: 2160h)"
-  echo "  --output-dir    Diretório para salvar os arquivos (padrão: ./certs-output)"
-  echo "  --emergency     Usar TTL de 24h para emissão de emergência"
+  echo "Options:"
+  echo "  --tenant-id     Tenant UUID (required)"
+  echo "  --common-name   Certificate Common Name (required)"
+  echo "  --org           Organization (default: BaaS Partner)"
+  echo "  --country       Two-letter country code (default: US)"
+  echo "  --ttl           Validity period, e.g.: 2160h, 90d (default: 2160h)"
+  echo "  --output-dir    Directory to save files (default: ./certs-output)"
+  echo "  --emergency     Use 24h TTL for emergency issuance"
   exit 1
 }
 
@@ -43,7 +43,7 @@ done
 
 mkdir -p "$OUTPUT_DIR"
 
-echo "==> Emitindo certificado..."
+echo "==> Issuing certificate..."
 echo "    Tenant  : $TENANT_ID"
 echo "    CN      : $COMMON_NAME"
 echo "    TTL     : $TTL"
@@ -62,8 +62,8 @@ RESPONSE=$(curl -sf -X POST "$CERT_SERVICE_URL/v1/certificates" \
 CERT_ID=$(echo "$RESPONSE" | jq -r '.id')
 EXPIRES_AT=$(echo "$RESPONSE" | jq -r '.expiresAt')
 
-echo "$RESPONSE" | jq -r '.certPem'      > "$OUTPUT_DIR/${CERT_ID}.crt"
-echo "$RESPONSE" | jq -r '.chainPem'     > "$OUTPUT_DIR/${CERT_ID}-chain.crt"
+echo "$RESPONSE" | jq -r '.certPem'       > "$OUTPUT_DIR/${CERT_ID}.crt"
+echo "$RESPONSE" | jq -r '.chainPem'      > "$OUTPUT_DIR/${CERT_ID}-chain.crt"
 echo "$RESPONSE" | jq -r '.privateKeyPem' > "$OUTPUT_DIR/${CERT_ID}.key"
 chmod 600 "$OUTPUT_DIR/${CERT_ID}.key"
 
@@ -72,16 +72,16 @@ cat "$OUTPUT_DIR/${CERT_ID}.crt" "$OUTPUT_DIR/${CERT_ID}-chain.crt" \
 
 echo ""
 echo "====================================================="
-echo " Certificado emitido com sucesso!"
+echo " Certificate issued successfully!"
 echo "   ID          : $CERT_ID"
-echo "   Expira em   : $EXPIRES_AT"
-echo "   Arquivos em : $OUTPUT_DIR/"
-echo "     ${CERT_ID}.crt          (certificado)"
-echo "     ${CERT_ID}.key          (chave privada — proteja!)"
-echo "     ${CERT_ID}-fullchain.crt (certificado + cadeia)"
+echo "   Expires at  : $EXPIRES_AT"
+echo "   Files in    : $OUTPUT_DIR/"
+echo "     ${CERT_ID}.crt          (certificate)"
+echo "     ${CERT_ID}.key          (private key — protect it!)"
+echo "     ${CERT_ID}-fullchain.crt (certificate + chain)"
 echo "====================================================="
 echo ""
-echo "Teste com curl:"
+echo "Test with curl:"
 echo "  curl --cert $OUTPUT_DIR/${CERT_ID}.crt \\"
 echo "       --key  $OUTPUT_DIR/${CERT_ID}.key  \\"
 echo "       https://api.zuplo.baas.io/v1/ping"

@@ -1,29 +1,29 @@
-# 04 — Configuração da Step-CA
+# 04 — Step-CA Configuration
 
-## O que é o Step-CA?
+## What is Step-CA?
 
-[Smallstep step-ca](https://smallstep.com/docs/step-ca/) é uma CA open-source, cloud-native, que suporta:
-- API REST para emissão e revogação automática
-- Múltiplos provisioners (JWK, ACME, OIDC, x5c, etc.)
-- OCSP e CRL nativos
-- HA com storage compartilhado
-- Rotação automática de certificados via `step-ca renew`
+[Smallstep step-ca](https://smallstep.com/docs/step-ca/) is an open-source, cloud-native CA that supports:
+- REST API for automated issuance and revocation
+- Multiple provisioners (JWK, ACME, OIDC, x5c, etc.)
+- Native OCSP and CRL
+- HA with shared storage
+- Automatic certificate rotation via `step-ca renew`
 
-## Hierarquia de CA nesta plataforma
+## CA hierarchy in this platform
 
 ```
 Root CA
-├── Validade: 10 anos
-├── Algoritmo: ECDSA P-384
-├── Armazenamento: K8s Secret (cifrado em repouso)
+├── Validity: 10 years
+├── Algorithm: ECDSA P-384
+├── Storage: K8s Secret (encrypted at rest)
 └── Intermediate CA
-    ├── Validade: 1 ano (renovação automática)
-    ├── Algoritmo: ECDSA P-256
-    ├── Online no cluster
-    └── Emite leaf certs para parceiros (TTL: 90 dias)
+    ├── Validity: 1 year (automatic renewal)
+    ├── Algorithm: ECDSA P-256
+    ├── Online in the cluster
+    └── Issues leaf certs for partners (TTL: 90 days)
 ```
 
-## 1. Inicialização (executada pelo setup-ca.sh)
+## 1. Initialization (executed by setup-ca.sh)
 
 ```bash
 step ca init \
@@ -40,78 +40,78 @@ step ca init \
   --intermediate-ttl 8760h
 ```
 
-Isso gera:
-- `root_ca.crt` / `root_ca.key` — Root CA (guardar offline!)
-- `intermediate_ca.crt` / `intermediate_ca.key` — Intermediate CA (no cluster)
-- `$(step path)/config/ca.json` — Configuração da CA
+This generates:
+- `root_ca.crt` / `root_ca.key` — Root CA (store offline!)
+- `intermediate_ca.crt` / `intermediate_ca.key` — Intermediate CA (in cluster)
+- `$(step path)/config/ca.json` — CA configuration
 
-## 2. Provisioners configurados
+## 2. Configured provisioners
 
-### JWK (JSON Web Key) — para cert-manager
+### JWK (JSON Web Key) — for cert-manager
 
-Usado pelo cert-manager para emitir certificados Kubernetes-nativos.
+Used by cert-manager to issue Kubernetes-native certificates.
 
 ```bash
-# Listar provisioners
+# List provisioners
 step ca provisioner list
 
-# Adicionar novo provisioner JWK
-step ca provisioner add novo-parceiro --type JWK
+# Add a new JWK provisioner
+step ca provisioner add new-partner --type JWK
 ```
 
-### ACME — para renovação automática
+### ACME — for automatic renewal
 
 ```bash
-# Testar endpoint ACME
+# Test ACME endpoint
 curl https://step-ca-svc.pki-system.svc.cluster.local:9000/acme/acme/directory
 ```
 
-### x5c — para emissão com cert de cliente
+### x5c — for issuance with a client certificate
 
-Permite que um parceiro com certificado válido emita novos certificados (auto-renovação).
+Allows a partner with a valid certificate to issue new certificates (self-renewal).
 
-## 3. Verificação da CA
+## 3. CA verification
 
 ```bash
-# Dentro do cluster
+# From inside the cluster
 kubectl exec -n pki-system deploy/step-certificates -- \
   step ca health
 
-# Ver informações da CA
+# View CA information
 kubectl exec -n pki-system deploy/step-certificates -- \
   step ca roots
 
-# Fingerprint da Root CA
+# Root CA fingerprint
 kubectl exec -n pki-system deploy/step-certificates -- \
   step certificate fingerprint /home/step/certs/root_ca.crt
 ```
 
-## 4. Emissão manual de certificado (debug)
+## 4. Manual certificate issuance (debugging)
 
 ```bash
-# Instalar step CLI localmente
+# Install step CLI locally
 brew install step
 
-# Configurar step para usar a CA do cluster
-# (via port-forward para teste local)
+# Configure step to use the cluster CA
+# (via port-forward for local testing)
 kubectl port-forward -n pki-system svc/step-ca-svc 9000:9000 &
 
 step ca bootstrap \
   --ca-url https://localhost:9000 \
-  --fingerprint SEU_FINGERPRINT \
+  --fingerprint YOUR_FINGERPRINT \
   --install
 
-# Emitir certificado de teste
+# Issue a test certificate
 step ca certificate \
-  "test.parceiro.baas.io" \
+  "test.partner.baas.io" \
   test.crt test.key \
   --provisioner cert-manager \
   --not-after 24h
 ```
 
-## 5. Configuração de CRL e OCSP
+## 5. CRL and OCSP configuration
 
-O `ca.json` (no ConfigMap) já inclui:
+The `ca.json` (in the ConfigMap) already includes:
 
 ```json
 {
@@ -124,49 +124,49 @@ O `ca.json` (no ConfigMap) já inclui:
 }
 ```
 
-### Verificar CRL
+### Verify CRL
 
 ```bash
-# Baixar CRL da CA
+# Download CRL from the CA
 curl -sk https://step-ca-svc.pki-system.svc.cluster.local:9000/1.0/crl \
   | openssl crl -inform DER -noout -text
 ```
 
-### Verificar status OCSP
+### Check OCSP status
 
 ```bash
 openssl ocsp \
   -issuer intermediate_ca.crt \
-  -cert   cliente.crt \
+  -cert   client.crt \
   -url    https://step-ca-svc.pki-system.svc.cluster.local:8080 \
   -resp_text
 ```
 
-## 6. Renovação da Intermediate CA
+## 6. Intermediate CA renewal
 
-A cert-manager renova automaticamente quando TTL < 25% restante. Em caso de falha:
+cert-manager renews automatically when TTL < 25% remaining. If it fails:
 
 ```bash
-# Forçar renovação manual via cert-manager
+# Force manual renewal via cert-manager
 kubectl annotate certificate step-ca-intermediate \
   -n pki-system \
   cert-manager.io/issuer-kind=ClusterIssuer \
   --overwrite
 
-# Ou deletar o Secret para forçar recriação
+# Or delete the Secret to force recreation
 kubectl delete secret step-ca-intermediate-cert -n pki-system
 ```
 
-## 7. Backup da CA
+## 7. CA backup
 
 ```bash
-# Backup do PVC da CA (state: DB de emissões)
+# Backup the CA PVC (issuance DB state)
 kubectl exec -n pki-system deploy/step-certificates -- \
   tar czf - /home/step/db | \
   gzip > "step-ca-backup-$(date +%Y%m%d).tar.gz"
 
-# O root_ca.key deve estar armazenado offline
-# O intermediate_ca.key está no K8s Secret step-ca-intermediate-cert
+# The root_ca.key must be stored offline
+# The intermediate_ca.key is in the K8s Secret step-ca-intermediate-cert
 kubectl get secret step-ca-intermediate-cert -n pki-system \
   -o jsonpath='{.data.intermediate_ca\.key}' | base64 -d
 ```

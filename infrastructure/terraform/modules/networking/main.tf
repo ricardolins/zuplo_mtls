@@ -23,7 +23,7 @@ resource "linode_firewall" "cluster_fw" {
     ipv6     = ["::/0"]
   }
 
-  # Porta interna da CA — apenas tráfego intra-cluster
+  # Internal CA port — cluster-only traffic
   inbound {
     label    = "allow-step-ca-internal"
     action   = "ACCEPT"
@@ -44,5 +44,5 @@ resource "linode_firewall" "cluster_fw" {
 }
 
 output "nodebalancer_ip" {
-  value = "Provisionado pelo LKE via Ingress NGINX"
+  value = "Provisioned by LKE via Ingress NGINX"
 }

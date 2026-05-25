@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bootstrap-cluster.sh — Instala todos os componentes no LKE após provisionamento Terraform
+# bootstrap-cluster.sh — Installs all components on LKE after Terraform provisioning
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,13 +8,13 @@ KUBECONFIG="${KUBECONFIG:-$ROOT_DIR/.kubeconfig-lke}"
 
 export KUBECONFIG
 
-echo "==> Verificando conexão com o cluster..."
+echo "==> Verifying cluster connection..."
 kubectl cluster-info
 
-echo "==> Criando namespaces..."
+echo "==> Creating namespaces..."
 kubectl apply -f "$ROOT_DIR/kubernetes/namespaces/namespaces.yaml"
 
-echo "==> Instalando ingress-nginx..."
+echo "==> Installing ingress-nginx..."
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo update
 helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
@@ -24,7 +24,7 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --set controller.extraArgs.enable-ssl-passthrough="" \
   --wait --timeout 5m
 
-echo "==> Aguardando IP do LoadBalancer..."
+echo "==> Waiting for LoadBalancer IP..."
 kubectl wait --namespace ingress-nginx \
   --for=condition=ready pod \
   --selector=app.kubernetes.io/component=controller \
@@ -34,7 +34,7 @@ LB_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx \
   -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 echo "    NodeBalancer IP: $LB_IP"
 
-echo "==> Instalando cert-manager..."
+echo "==> Installing cert-manager..."
 helm repo add jetstack https://charts.jetstack.io
 helm repo update
 helm upgrade --install cert-manager jetstack/cert-manager \
@@ -43,20 +43,20 @@ helm upgrade --install cert-manager jetstack/cert-manager \
   --values "$ROOT_DIR/kubernetes/cert-manager/values.yaml" \
   --wait --timeout 5m
 
-echo "==> Instalando step-issuer (CRD para cert-manager + Step-CA)..."
+echo "==> Installing step-issuer (CRD for cert-manager + Step-CA)..."
 helm repo add smallstep https://smallstep.github.io/helm-charts
 helm repo update
 helm upgrade --install step-issuer smallstep/step-issuer \
   --namespace pki-system \
   --wait --timeout 3m
 
-echo "==> Instalando Step-CA..."
+echo "==> Installing Step-CA..."
 helm upgrade --install step-certificates smallstep/step-certificates \
   --namespace pki-system \
   --values "$ROOT_DIR/kubernetes/step-ca/values.yaml" \
   --wait --timeout 5m
 
-echo "==> Instalando kube-prometheus-stack (Prometheus + Grafana)..."
+echo "==> Installing kube-prometheus-stack (Prometheus + Grafana)..."
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update
 helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
@@ -66,8 +66,8 @@ helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheu
 
 echo ""
 echo "====================================================="
-echo " Bootstrap concluido!"
-echo " Proximos passos:"
-echo "   1. Execute: ./scripts/setup-ca.sh"
-echo "   2. Aponte seu DNS para: $LB_IP"
+echo " Bootstrap complete!"
+echo " Next steps:"
+echo "   1. Run: ./scripts/setup-ca.sh"
+echo "   2. Point your DNS to: $LB_IP"
 echo "====================================================="

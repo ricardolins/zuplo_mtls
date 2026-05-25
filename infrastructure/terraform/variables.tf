@@ -1,77 +1,77 @@
 variable "linode_token" {
-  description = "Token de acesso à API do Linode"
+  description = "Linode API access token"
   type        = string
   sensitive   = true
 }
 
 variable "region" {
-  description = "Região do Linode para o cluster LKE"
+  description = "Linode region for the LKE cluster"
   type        = string
   default     = "us-east"
 }
 
 variable "cluster_name" {
-  description = "Nome do cluster LKE"
+  description = "LKE cluster name"
   type        = string
   default     = "mtls-baas-prod"
 }
 
 variable "kubernetes_version" {
-  description = "Versão do Kubernetes no LKE"
+  description = "Kubernetes version on LKE"
   type        = string
   default     = "1.29"
 }
 
 variable "pki_node_count" {
-  description = "Número de nós no pool PKI"
+  description = "Number of nodes in the PKI pool"
   type        = number
   default     = 2
 }
 
 variable "app_node_count" {
-  description = "Número de nós no pool de aplicação"
+  description = "Number of nodes in the application pool"
   type        = number
   default     = 3
 }
 
 variable "monitoring_node_count" {
-  description = "Número de nós no pool de monitoramento"
+  description = "Number of nodes in the monitoring pool"
   type        = number
   default     = 1
 }
 
 variable "pki_node_type" {
-  description = "Tipo de instância para nós PKI (dedicado para operações criptográficas)"
+  description = "Instance type for PKI nodes (dedicated for cryptographic operations)"
   type        = string
   default     = "g6-dedicated-2"
 }
 
 variable "app_node_type" {
-  description = "Tipo de instância para nós de aplicação"
+  description = "Instance type for application nodes"
   type        = string
   default     = "g6-standard-4"
 }
 
 variable "monitoring_node_type" {
-  description = "Tipo de instância para nós de monitoramento"
+  description = "Instance type for monitoring nodes"
   type        = string
   default     = "g6-standard-2"
 }
 
 variable "tags" {
-  description = "Tags para todos os recursos Linode"
+  description = "Tags for all Linode resources"
   type        = list(string)
   default     = ["mtls-baas", "production", "pki"]
 }
 
 variable "cert_service_domain" {
-  description = "Domínio público do Certificate Service API"
+  description = "Public domain for the Certificate Service API"
   type        = string
   default     = "certs.baas.io"
 }
 
 variable "high_availability" {
-  description = "Habilitar control plane HA do LKE"
+  description = "Enable LKE HA control plane"
   type        = bool
   default     = true
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-mtls.sh — Testa a conexão mTLS contra o Zuplo Gateway
+# test-mtls.sh — Tests the mTLS connection against the Zuplo Gateway
 set -euo pipefail
 
 GATEWAY_URL="${GATEWAY_URL:-https://api.zuplo.baas.io}"
@@ -7,61 +7,61 @@ CERT_DIR="${1:-./certs-output}"
 CERT_FILE=""
 KEY_FILE=""
 
-# Encontrar o primeiro certificado disponível no diretório
+# Find the first available certificate in the directory
 if [[ -z "$CERT_FILE" ]]; then
   CERT_FILE=$(find "$CERT_DIR" -name "*.crt" ! -name "*chain*" ! -name "*fullchain*" | head -1)
   KEY_FILE="${CERT_FILE%.crt}.key"
 fi
 
 if [[ -z "$CERT_FILE" || ! -f "$CERT_FILE" ]]; then
-  echo "ERRO: Nenhum certificado encontrado em $CERT_DIR"
-  echo "Execute primeiro: ./scripts/issue-cert.sh"
+  echo "ERROR: No certificate found in $CERT_DIR"
+  echo "Run first: ./scripts/issue-cert.sh"
   exit 1
 fi
 
-echo "==> Informações do certificado:"
+echo "==> Certificate information:"
 openssl x509 -in "$CERT_FILE" -noout -subject -issuer -dates
 
 echo ""
-echo "==> Testando conexão mTLS com $GATEWAY_URL..."
+echo "==> Testing mTLS connection to $GATEWAY_URL..."
 echo ""
 
-# Teste 1: Health check sem mTLS (deve falhar com 401)
-echo "-- Teste 1: Sem certificado de cliente (esperado: 401)"
+# Test 1: Health check without mTLS (should fail with 401)
+echo "-- Test 1: Without client certificate (expected: 401)"
 HTTP_CODE=$(curl -sw "%{http_code}" -o /dev/null "$GATEWAY_URL/v1/health" 2>/dev/null || true)
 if [[ "$HTTP_CODE" == "401" ]]; then
-  echo "   PASSOU: 401 retornado conforme esperado"
+  echo "   PASSED: 401 returned as expected"
 else
-  echo "   ATENÇÃO: Retornou $HTTP_CODE (esperado 401)"
+  echo "   WARNING: Returned $HTTP_CODE (expected 401)"
 fi
 
 echo ""
 
-# Teste 2: Com certificado válido
-echo "-- Teste 2: Com certificado válido (esperado: 200)"
+# Test 2: With valid certificate
+echo "-- Test 2: With valid certificate (expected: 200)"
 HTTP_CODE=$(curl -sw "%{http_code}" -o /dev/null \
   --cert "$CERT_FILE" \
   --key  "$KEY_FILE" \
   "$GATEWAY_URL/v1/health" 2>/dev/null || true)
 if [[ "$HTTP_CODE" == "200" ]]; then
-  echo "   PASSOU: 200 retornado"
+  echo "   PASSED: 200 returned"
 else
-  echo "   FALHOU: Retornou $HTTP_CODE (esperado 200)"
+  echo "   FAILED: Returned $HTTP_CODE (expected 200)"
 fi
 
 echo ""
 
-# Teste 3: Verificar headers injetados
-echo "-- Teste 3: Verificar headers de autenticação injetados"
+# Test 3: Verify injected headers
+echo "-- Test 3: Verify injected authentication headers"
 RESPONSE=$(curl -sf \
   --cert "$CERT_FILE" \
   --key  "$KEY_FILE" \
   "$GATEWAY_URL/v1/health" 2>/dev/null || echo "{}")
 
-echo "   Resposta: $RESPONSE"
+echo "   Response: $RESPONSE"
 
 echo ""
-echo "==> Teste de handshake TLS detalhado:"
+echo "==> Detailed TLS handshake test:"
 openssl s_client \
   -connect "${GATEWAY_URL#https://}:443" \
   -cert "$CERT_FILE" \
@@ -70,4 +70,4 @@ openssl s_client \
   -brief 2>&1 | head -20
 
 echo ""
-echo "==> Testes concluídos."
+echo "==> Tests complete."

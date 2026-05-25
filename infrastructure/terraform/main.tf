@@ -23,7 +23,7 @@ module "networking" {
   tags         = var.tags
 }
 
-# Salva kubeconfig localmente (nao versionar)
+# Save kubeconfig locally (do not commit)
 resource "local_file" "kubeconfig" {
   content         = base64decode(module.lke_cluster.kubeconfig)
   filename        = "${path.module}/../../.kubeconfig-lke"

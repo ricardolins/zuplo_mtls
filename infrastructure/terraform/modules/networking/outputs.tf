@@ -1,4 +1,4 @@
 output "nodebalancer_ip" {
-  description = "IP do NodeBalancer (disponivel apos deploy do Ingress NGINX)"
-  value       = "pendente-apos-ingress-deploy"
+  description = "NodeBalancer IP (available after Ingress NGINX deployment)"
+  value       = "pending-after-ingress-deploy"
 }

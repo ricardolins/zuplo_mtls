@@ -1,21 +1,21 @@
-# 06 — Integração com Zuplo
+# 06 — Zuplo Integration
 
-## Visão geral
+## Overview
 
-O Zuplo atua como **API Gateway de entrada** para todas as APIs protegidas por mTLS. Ele:
+Zuplo acts as the **entry-point API Gateway** for all mTLS-protected APIs. It:
 
-1. **Recebe** requisições HTTPS com certificado de cliente (mTLS)
-2. **Valida** o certificado via política customizada
-3. **Injeta** a identidade do certificado nos headers da requisição
-4. **Encaminha** para o backend (Certificate Service ou APIs downstream)
-5. **Documenta** via Developer Portal integrado
+1. **Receives** HTTPS requests with a client certificate (mTLS)
+2. **Validates** the certificate via a custom policy
+3. **Injects** the certificate identity into request headers
+4. **Forwards** to the backend (Certificate Service or downstream APIs)
+5. **Documents** via the built-in Developer Portal
 
-## Arquitetura Zuplo + Ingress NGINX
+## Architecture: Zuplo + Ingress NGINX
 
 ```
 Internet
     │
-    ▼ HTTPS (porta 443)
+    ▼ HTTPS (port 443)
 NodeBalancer (Linode LB)
     │
     ▼
@@ -23,49 +23,49 @@ Ingress NGINX
     │  ssl_passthrough=false
     │  nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
     │  nginx.ingress.kubernetes.io/auth-tls-secret: "pki-system/step-ca-root-cert"
-    │  Injeta headers: X-Client-Cert, X-Client-Cert-DN, X-Client-Cert-Serial
+    │  Injects headers: X-Client-Cert, X-Client-Cert-DN, X-Client-Cert-Serial
     │
     ▼
 Zuplo Gateway (runtime)
-    │  Política: mtls-inbound-policy (lê headers injetados)
-    │  Política: cert-validation-policy (valida CN, OCSP)
-    │  Política: rate-limit-policy
+    │  Policy: mtls-inbound-policy (reads injected headers)
+    │  Policy: cert-validation-policy (validates CN, OCSP)
+    │  Policy: rate-limit-policy
     │
     ▼
 Backend Service
 ```
 
-## 1. Criar projeto Zuplo
+## 1. Create a Zuplo project
 
-1. Acesse https://portal.zuplo.com
-2. Crie novo projeto: **"baas-mtls-gateway"**
-3. Ambiente: Production → apontar para `api.zuplo.baas.io`
+1. Go to https://portal.zuplo.com
+2. Create a new project: **"baas-mtls-gateway"**
+3. Environment: Production → point to `api.zuplo.baas.io`
 
-## 2. Configurar variáveis de ambiente
+## 2. Configure environment variables
 
-No painel Zuplo > Settings > Environment Variables:
+In Zuplo panel > Settings > Environment Variables:
 
-| Variável | Valor |
+| Variable | Value |
 |----------|-------|
 | `CERT_SERVICE_URL` | `http://certificate-service-svc.certificate-service` |
-| `CA_FINGERPRINT` | fingerprint da Root CA |
+| `CA_FINGERPRINT` | Root CA fingerprint |
 | `OCSP_URL` | `http://step-ca-svc.pki-system:8080` |
 
-## 3. Adicionar políticas ao projeto
+## 3. Add policies to the project
 
-Copie os arquivos de [zuplo/policies/](../zuplo/policies/) para o seu projeto Zuplo:
+Copy the files from [zuplo/policies/](../zuplo/policies/) into your Zuplo project:
 
 ```
 zuplo/
 ├── policies/
-│   ├── mtls-policy.ts             → política principal mTLS
-│   └── cert-validation-policy.ts  → validação CN + OCSP
-└── routes.oas.json                → rotas com políticas aplicadas
+│   ├── mtls-policy.ts             → main mTLS policy
+│   └── cert-validation-policy.ts  → CN validation + OCSP
+└── routes.oas.json                → routes with applied policies
 ```
 
-## 4. Configurar política mTLS no Developer Portal
+## 4. Configure the mTLS policy in the Developer Portal
 
-No arquivo `zuplo.jsonc` do projeto:
+In the project's `zuplo.jsonc` file:
 
 ```jsonc
 {
@@ -107,76 +107,76 @@ No arquivo `zuplo.jsonc` do projeto:
 
 ## 5. Developer Portal (Zuplo)
 
-O Zuplo gera automaticamente um Developer Portal com:
+Zuplo automatically generates a Developer Portal with:
 
-- Documentação OpenAPI das rotas
-- Playground para testar requisições
-- Guias de onboarding para parceiros
+- OpenAPI documentation for all routes
+- Request playground for testing
+- Onboarding guides for partners
 
-### Customizar o portal
+### Customize the portal
 
 ```
 zuplo/
 └── docs/
-    ├── index.md           → página inicial do portal
-    ├── authentication.md  → guia de mTLS para parceiros
-    └── quickstart.md      → primeiros passos
+    ├── index.md           → portal landing page
+    ├── authentication.md  → mTLS guide for partners
+    └── quickstart.md      → getting started
 ```
 
-### URL do Developer Portal
+### Developer Portal URL
 
-Após deploy: `https://baas-mtls-gateway.zuplo.io`
+After deployment: `https://baas-mtls-gateway.zuplo.io`
 
-## 6. Testar no Zuplo
+## 6. Testing in Zuplo
 
 ```bash
-# Sem certificado — deve retornar 401
+# Without certificate — should return 401
 curl https://baas-mtls-gateway.zuplo.io/v1/certificates
 
-# Com certificado válido — deve retornar 200
+# With valid certificate — should return 200
 curl --cert ./certs-output/client.crt \
      --key  ./certs-output/client.key \
      https://baas-mtls-gateway.zuplo.io/v1/certificates
 ```
 
-## 7. Configuração mTLS no Ingress NGINX
+## 7. mTLS configuration in Ingress NGINX
 
-O Ingress NGINX precisa ter o CA bundle para validar o certificado do cliente:
+Ingress NGINX needs the CA bundle to validate the client certificate:
 
 ```bash
-# Criar Secret com o CA bundle no namespace pki-system
+# Create Secret with CA bundle in pki-system namespace
 kubectl create secret generic step-ca-root-cert \
   --namespace pki-system \
   --from-file=ca.crt=./root_ca.crt
 
-# Verificar a configuração
+# Verify the configuration
 kubectl get ingress certificate-service-ingress -n certificate-service -o yaml
 ```
 
-### Annotations críticas no Ingress
+### Critical Ingress annotations
 
 ```yaml
 nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
-# "on"       = mTLS obrigatório
-# "optional" = mTLS opcional (permite requisições sem cert)
-# "off"      = desabilita mTLS
+# "on"       = mTLS required
+# "optional" = mTLS optional (allows requests without cert)
+# "off"      = disable mTLS
 
 nginx.ingress.kubernetes.io/auth-tls-secret: "pki-system/step-ca-root-cert"
 nginx.ingress.kubernetes.io/auth-tls-verify-depth: "2"
 nginx.ingress.kubernetes.io/auth-tls-pass-certificate-to-upstream: "true"
-# Injeta o cert como header X-Client-Cert para o Zuplo processar
+# Injects the cert as X-Client-Cert header for Zuplo to process
 ```
 
-## 8. Headers injetados pelo Ingress
+## 8. Headers injected by Ingress
 
-Após validação do mTLS pelo Ingress NGINX, os seguintes headers chegam ao Zuplo:
+After mTLS validation by Ingress NGINX, the following headers reach Zuplo:
 
-| Header | Valor exemplo |
+| Header | Example value |
 |--------|--------------|
-| `X-Client-Cert` | PEM URL-encoded do certificado |
-| `X-Client-Cert-DN` | `CN=parceiro-a.api.baas.io,O=Parceiro A` |
+| `X-Client-Cert` | URL-encoded PEM certificate |
+| `X-Client-Cert-DN` | `CN=partner-a.api.baas.io,O=Partner A` |
 | `X-Client-Cert-Serial` | `3a:f2:...` |
 | `X-Client-Cert-Expiry` | `Dec 31 23:59:59 2025 GMT` |
 | `X-Client-Cert-Issuer` | `CN=BaaS mTLS Intermediate CA` |
 
-A política `mtls-inbound-policy.ts` lê esses headers e injeta `X-Authenticated-CN` para uso nos backends.
+The `mtls-inbound-policy.ts` policy reads these headers and injects `X-Authenticated-CN` for use by backends.

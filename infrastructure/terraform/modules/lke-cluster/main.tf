@@ -8,14 +8,14 @@ resource "linode_lke_cluster" "main" {
     high_availability = var.high_availability
   }
 
-  # Pool dedicado para workloads PKI (step-ca, cert-manager)
+  # Dedicated pool for PKI workloads (step-ca, cert-manager)
   pool {
     type  = var.pki_node_type
     count = var.pki_node_count
 
     labels = {
-      "role"        = "pki"
-      "workload"    = "certificate-authority"
+      "role"     = "pki"
+      "workload" = "certificate-authority"
     }
 
     taint {
@@ -25,7 +25,7 @@ resource "linode_lke_cluster" "main" {
     }
   }
 
-  # Pool para Certificate Service API
+  # Pool for Certificate Service API
   pool {
     type  = var.app_node_type
     count = var.app_node_count
@@ -36,7 +36,7 @@ resource "linode_lke_cluster" "main" {
     }
   }
 
-  # Pool para monitoramento
+  # Pool for monitoring
   pool {
     type  = var.monitoring_node_type
     count = var.monitoring_node_count

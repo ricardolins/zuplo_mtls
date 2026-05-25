@@ -1,6 +1,6 @@
-# 09 — Observabilidade
+# 09 — Observability
 
-## Stack de Monitoramento
+## Monitoring Stack
 
 ```
 Step-CA ──► Prometheus ──► Grafana (dashboards)
@@ -9,36 +9,36 @@ Ingress NGINX ──►   │
                     └──► Alertmanager ──► Webhook / PagerDuty
 ```
 
-## 1. Métricas expostas
+## 1. Exposed metrics
 
-### Step-CA (porta 9100)
+### Step-CA (port 9100)
 
-| Métrica | Tipo | Descrição |
-|---------|------|-----------|
-| `step_ca_sign_requests_total` | Counter | Total de requisições de assinatura |
-| `step_ca_sign_duration_seconds` | Histogram | Latência de assinatura |
-| `step_ca_revoke_requests_total` | Counter | Total de revogações |
-| `step_ca_active_certificates` | Gauge | Certificados ativos |
+| Metric | Type | Description |
+|--------|------|-------------|
+| `step_ca_sign_requests_total` | Counter | Total signing requests |
+| `step_ca_sign_duration_seconds` | Histogram | Signing latency |
+| `step_ca_revoke_requests_total` | Counter | Total revocations |
+| `step_ca_active_certificates` | Gauge | Active certificates |
 
-### Certificate Service (porta 3001)
+### Certificate Service (port 3001)
 
-| Métrica | Tipo | Descrição |
-|---------|------|-----------|
-| `mtls_certificates_issued_total` | Counter | Certificados emitidos (por tenant) |
-| `mtls_certificates_revoked_total` | Counter | Certificados revogados |
-| `mtls_cert_expiry_seconds` | Gauge | Segundos até expiração (por cert) |
-| `http_request_duration_seconds` | Histogram | Latência HTTP (por rota) |
+| Metric | Type | Description |
+|--------|------|-------------|
+| `mtls_certificates_issued_total` | Counter | Certificates issued (per tenant) |
+| `mtls_certificates_revoked_total` | Counter | Certificates revoked |
+| `mtls_cert_expiry_seconds` | Gauge | Seconds until expiry (per cert) |
+| `http_request_duration_seconds` | Histogram | HTTP latency (per route) |
 
 ### Ingress NGINX
 
-| Métrica | Tipo | Descrição |
-|---------|------|-----------|
-| `nginx_ingress_controller_ssl_expire_time_seconds` | Gauge | Expiração dos certs do servidor |
-| `nginx_ingress_controller_requests` | Counter | Requisições (por status) |
+| Metric | Type | Description |
+|--------|------|-------------|
+| `nginx_ingress_controller_ssl_expire_time_seconds` | Gauge | Server cert expiry |
+| `nginx_ingress_controller_requests` | Counter | Requests (by status) |
 
-## 2. Alertas configurados
+## 2. Configured alerts
 
-### Regras Prometheus (criar em `kubernetes/monitoring/prometheus/alerts.yaml`)
+### Prometheus rules (create in `kubernetes/monitoring/prometheus/alerts.yaml`)
 
 ```yaml
 groups:
@@ -51,8 +51,8 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "Certificado expira em menos de 15 dias"
-          description: "Tenant {{ $labels.tenant_id }} tem certificado expirando em {{ $value | humanizeDuration }}"
+          summary: "Certificate expires in less than 15 days"
+          description: "Tenant {{ $labels.tenant_id }} has a certificate expiring in {{ $value | humanizeDuration }}"
 
       - alert: CARootExpiry
         expr: |
@@ -61,7 +61,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Root CA expira em menos de 180 dias"
+          summary: "Root CA expires in less than 180 days"
 
       - alert: HighRevocationRate
         expr: |
@@ -70,7 +70,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Taxa alta de revogações — possível incidente de segurança"
+          summary: "High revocation rate — possible security incident"
 
       - alert: CAUnavailable
         expr: |
@@ -79,7 +79,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Step-CA indisponível"
+          summary: "Step-CA unavailable"
 
       - alert: HighSignLatency
         expr: |
@@ -88,45 +88,45 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "Latência p99 de assinatura > 2s"
+          summary: "p99 signing latency > 2s"
 ```
 
-## 3. Dashboard Grafana recomendado
+## 3. Recommended Grafana dashboard
 
-### Painel: "mTLS BaaS Overview"
+### Panel: "mTLS BaaS Overview"
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│  Certs Emitidos (7d)  │  Certs Ativos  │  Revogados    │
-│       1,234           │      987       │      12       │
+│  Certs Issued (7d)    │  Active Certs  │  Revoked       │
+│       1,234           │      987       │      12        │
 ├────────────────────────────────────────────────────────┤
-│  Latência de Assinatura (p50/p95/p99)                   │
-│  [gráfico de linha temporal]                            │
+│  Signing Latency (p50/p95/p99)                          │
+│  [time-series chart]                                    │
 ├────────────────────────────────────────────────────────┤
-│  Certificados por Status   │  Emissões por Tenant       │
+│  Certificates by Status    │  Issuances by Tenant       │
 │  [pie chart]               │  [bar chart]               │
 ├────────────────────────────────────────────────────────┤
-│  Próximos a Vencer (< 30 dias)                         │
-│  [tabela: tenant_id | cn | expires_at | dias restantes]│
+│  Expiring Soon (< 30 days)                             │
+│  [table: tenant_id | cn | expires_at | days remaining] │
 └────────────────────────────────────────────────────────┘
 ```
 
-## 4. Acessar Grafana
+## 4. Access Grafana
 
 ```bash
-# Port-forward para acesso local
+# Port-forward for local access
 kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
 
-# Acessar: http://localhost:3000
-# Usuário: admin
-# Senha: obtida via kubectl get secret
+# Access: http://localhost:3000
+# Username: admin
+# Password: obtained via kubectl
 kubectl get secret kube-prometheus-stack-grafana -n monitoring \
   -o jsonpath='{.data.admin-password}' | base64 -d
 ```
 
-## 5. Logging estruturado
+## 5. Structured logging
 
-O Certificate Service usa Winston com saída JSON — todos os logs incluem:
+The Certificate Service uses Winston with JSON output — all logs include:
 
 ```json
 {
@@ -140,7 +140,7 @@ O Certificate Service usa Winston com saída JSON — todos os logs incluem:
 }
 ```
 
-Para centralizar logs, configure um DaemonSet Fluent Bit apontando para seu destino (CloudWatch, Loki, Datadog):
+To centralize logs, configure a Fluent Bit DaemonSet pointing to your destination (CloudWatch, Loki, Datadog):
 
 ```bash
 helm repo add fluent https://fluent.github.io/helm-charts

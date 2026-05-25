@@ -1,4 +1,4 @@
-# Helm values para kube-prometheus-stack
+# Helm values for kube-prometheus-stack
 # Chart: prometheus-community/kube-prometheus-stack
 
 prometheus:
@@ -38,7 +38,7 @@ grafana:
   enabled: true
   nodeSelector:
     role: monitoring
-  adminPassword: ""  # definido via Secret externo
+  adminPassword: ""  # set via external Secret
   persistence:
     enabled: true
     storageClassName: linode-block-storage-retain

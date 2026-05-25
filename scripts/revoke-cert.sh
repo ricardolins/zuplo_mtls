@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# revoke-cert.sh — Revoga um certificado mTLS
+# revoke-cert.sh — Revokes an mTLS certificate
 set -euo pipefail
 
 CERT_SERVICE_URL="${CERT_SERVICE_URL:-https://certs.baas.io}"
@@ -8,9 +8,9 @@ CERT_ID=""
 REASON="unspecified"
 
 usage() {
-  echo "Uso: $0 --tenant-id UUID --cert-id UUID [--reason MOTIVO]"
+  echo "Usage: $0 --tenant-id UUID --cert-id UUID [--reason REASON]"
   echo ""
-  echo "Motivos disponíveis:"
+  echo "Available reasons:"
   echo "  unspecified, keyCompromise, caCompromise,"
   echo "  affiliationChanged, superseded, cessationOfOperation"
   exit 1
@@ -27,12 +27,12 @@ done
 
 [[ -z "$TENANT_ID" || -z "$CERT_ID" ]] && usage
 
-echo "==> Revogando certificado $CERT_ID (motivo: $REASON)..."
+echo "==> Revoking certificate $CERT_ID (reason: $REASON)..."
 
 curl -sf -X DELETE "$CERT_SERVICE_URL/v1/certificates/$CERT_ID" \
   -H "Content-Type: application/json" \
   -H "X-Tenant-Id: $TENANT_ID" \
   -d "{\"reason\": \"$REASON\"}"
 
-echo "Certificado $CERT_ID revogado com sucesso."
-echo "A CRL será atualizada em até 24h (ou imediatamente com --force-crl)."
+echo "Certificate $CERT_ID revoked successfully."
+echo "The CRL will be updated within 24h (or immediately with --force-crl)."

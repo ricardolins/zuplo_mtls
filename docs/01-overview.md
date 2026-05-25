@@ -1,76 +1,76 @@
-# 01 — Visão Geral e Conceitos
+# 01 — Overview and Concepts
 
-## O que esta plataforma entrega
+## What this platform delivers
 
-Esta plataforma implementa **mTLS como Serviço** no modelo BaaS, permitindo que fintechs e parceiros:
+This platform implements **mTLS as a Service** in the BaaS model, enabling fintechs and partners to:
 
-1. **Obtenham certificados X.509** assinados por uma CA confiável via API REST
-2. **Autentiquem-se mutuamente** ao chamar APIs críticas (sem usuário/senha no payload)
-3. **Gerenciem o ciclo de vida** dos certificados (emissão, renovação, revogação)
-4. **Integrem ao Developer Portal** do Zuplo para documentação e onboarding
+1. **Obtain X.509 certificates** signed by a trusted CA via REST API
+2. **Mutually authenticate** when calling critical APIs (no username/password in the payload)
+3. **Manage the certificate lifecycle** (issuance, renewal, revocation)
+4. **Integrate with Zuplo's Developer Portal** for documentation and onboarding
 
-## Componentes e versões
+## Components and versions
 
-| Componente | Versão | Função |
-|-----------|--------|--------|
-| **Step-CA** (Smallstep) | 0.26+ | Autoridade Certificadora |
-| **cert-manager** | v1.14+ | Gestão de certificados no K8s |
-| **step-issuer** | 0.7+ | Integração cert-manager ↔ Step-CA |
+| Component | Version | Role |
+|-----------|---------|------|
+| **Step-CA** (Smallstep) | 0.26+ | Certificate Authority |
+| **cert-manager** | v1.14+ | K8s certificate lifecycle management |
+| **step-issuer** | 0.7+ | cert-manager ↔ Step-CA integration |
 | **Zuplo** | latest | API Gateway + Developer Portal |
-| **Linode LKE** | K8s 1.29 | Infraestrutura Kubernetes |
-| **Terraform** | 1.5+ | Infraestrutura como Código |
-| **Helm** | 3.12+ | Deploy de charts no K8s |
-| **Ingress NGINX** | 1.9+ | Ingress controller com mTLS passthrough |
+| **Linode LKE** | K8s 1.29 | Kubernetes infrastructure |
+| **Terraform** | 1.5+ | Infrastructure as Code |
+| **Helm** | 3.12+ | Kubernetes chart deployment |
+| **Ingress NGINX** | 1.9+ | Ingress controller with mTLS passthrough |
 
-## Conceitos-chave
+## Key Concepts
 
 ### PKI (Public Key Infrastructure)
-Infraestrutura de chaves públicas — conjunto de políticas, procedimentos, hardware, software e pessoas necessários para criar, gerenciar, distribuir, usar, armazenar e revogar certificados digitais.
+The set of policies, procedures, hardware, software, and people needed to create, manage, distribute, use, store, and revoke digital certificates.
 
 ### X.509
-Padrão de certificados digitais usado em TLS. Define a estrutura do certificado: quem emitiu (Issuer), para quem (Subject), período de validade, chave pública, extensões e assinatura digital.
+The standard for digital certificates used in TLS. Defines the certificate structure: who issued it (Issuer), to whom (Subject), validity period, public key, extensions, and digital signature.
 
 ### CSR (Certificate Signing Request)
-Pedido de emissão de certificado. O requerente gera um par de chaves, cria um CSR com sua chave pública e dados de identidade, e envia para a CA assinar.
+A certificate issuance request. The requester generates a key pair, creates a CSR with their public key and identity data, and sends it to the CA for signing.
 
 ### CA (Certificate Authority)
-Entidade confiável que assina certificados. Sua assinatura garante a autenticidade do certificado.
+A trusted entity that signs certificates. Its signature guarantees the authenticity of the certificate.
 
-### mTLS x TLS
+### mTLS vs TLS
 
 | | TLS | mTLS |
 |-|-----|------|
-| Servidor apresenta cert | Sim | Sim |
-| Cliente apresenta cert | Não | Sim |
-| Autenticação bidirecional | Não | Sim |
-| Uso típico | HTTPS público | API B2B, serviços internos |
+| Server presents cert | Yes | Yes |
+| Client presents cert | No | Yes |
+| Mutual authentication | No | Yes |
+| Typical use | Public HTTPS | B2B APIs, internal services |
 
 ### Provisioner (Step-CA)
-Mecanismo de autenticação que autoriza a emissão de certificados na CA. Nesta plataforma usamos:
-- **JWK**: para o cert-manager emitir certificados internos
-- **ACME**: para renovação automática
-- **x5c**: para emissão usando um certificado de cliente existente
+An authentication mechanism that authorizes certificate issuance on the CA. This platform uses:
+- **JWK**: for cert-manager to issue internal certificates
+- **ACME**: for automatic renewal
+- **x5c**: for issuance using an existing client certificate
 
-## Fluxo de confiança
+## Trust chain
 
 ```
-Zuplo confia na Root CA
+Zuplo trusts the Root CA
     ↓
-Root CA assinou a Intermediate CA
+Root CA signed the Intermediate CA
     ↓
-Intermediate CA assinou o certificado do parceiro
+Intermediate CA signed the partner's certificate
     ↓
-Zuplo valida: "Este certificado foi emitido por alguém em quem confio"
+Zuplo validates: "This certificate was issued by someone I trust"
     ↓
-Parceiro autenticado → requisição processada
+Partner authenticated → request processed
 ```
 
-## Diferencial em relação a API Keys
+## Advantage over API Keys
 
 | | API Key | mTLS |
 |-|---------|------|
-| Pode ser vazada no código | Sim | Não (chave privada nunca sai do cliente) |
-| Revogação imediata | Não (depende de rotação) | Sim (CRL/OCSP) |
-| Identidade forte | Não (quem tiver a key pode usar) | Sim (precisa da chave privada) |
-| Auditoria | Parcial | Completa (CN no log) |
-| Overhead no request | Zero | ~1ms (handshake TLS) |
+| Can be leaked in code | Yes | No (private key never leaves the client) |
+| Immediate revocation | No (requires rotation) | Yes (CRL/OCSP) |
+| Strong identity | No (anyone with the key can use it) | Yes (requires private key) |
+| Auditing | Partial | Full (CN in every log line) |
+| Per-request overhead | Zero | ~1ms (TLS handshake) |
