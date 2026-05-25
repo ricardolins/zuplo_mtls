@@ -3,88 +3,93 @@
   "info": {
     "title": "BaaS mTLS Platform",
     "version": "1.0.0",
-    "description": "API protegida por mTLS para parceiros BaaS"
+    "description": "Certificate issuance and mTLS-protected API gateway for BaaS partners.\n\n## Authentication\n\n**Certificate Issuance (bootstrap):** Use your API Key from the Developer Portal in the `X-API-Key` header.\n\n**All other operations:** Use your issued mTLS certificate (mutual TLS)."
   },
   "paths": {
-    "/v1/certificates": {
-      "x-zuplo-path": {
-        "pathType": "open-api"
-      },
+    "/v1/tenants": {
+      "x-zuplo-path": { "pathType": "open-api" },
       "post": {
-        "summary": "Emitir certificado mTLS",
-        "operationId": "certificates-issue",
+        "summary": "Register a new tenant",
+        "description": "Public endpoint. Register your organization to receive an API Key for certificate issuance.",
+        "operationId": "tenants-create",
         "x-zuplo-route": {
           "corsPolicy": "none",
           "handler": {
             "export": "urlForwardHandler",
             "module": "$import(@zuplo/runtime)",
-            "options": {
-              "baseUrl": "${env.CERT_SERVICE_URL}"
-            }
+            "options": { "baseUrl": "${env.CERT_SERVICE_URL}" }
+          },
+          "policies": { "inbound": ["rate-limit-policy"] }
+        }
+      }
+    },
+
+    "/v1/certificates": {
+      "x-zuplo-path": { "pathType": "open-api" },
+      "post": {
+        "summary": "Issue an mTLS certificate",
+        "description": "**Auth: API Key** — Use the key from your Developer Portal account.\n\nThis is the bootstrap endpoint. Once you have a certificate, use mTLS for all subsequent calls.",
+        "operationId": "certificates-issue",
+        "security": [{ "ApiKey": [] }],
+        "x-zuplo-route": {
+          "corsPolicy": "none",
+          "handler": {
+            "export": "urlForwardHandler",
+            "module": "$import(@zuplo/runtime)",
+            "options": { "baseUrl": "${env.CERT_SERVICE_URL}" }
           },
           "policies": {
-            "inbound": [
-              "mtls-inbound-policy",
-              "cert-validation-policy",
-              "rate-limit-policy"
-            ]
+            "inbound": ["api-key-inbound-policy", "rate-limit-policy"]
           }
         }
       },
       "get": {
-        "summary": "Listar certificados do tenant",
+        "summary": "List your certificates",
+        "description": "**Auth: API Key** — Lists all certificates for your tenant.",
         "operationId": "certificates-list",
+        "security": [{ "ApiKey": [] }],
         "x-zuplo-route": {
           "corsPolicy": "none",
           "handler": {
             "export": "urlForwardHandler",
             "module": "$import(@zuplo/runtime)",
-            "options": {
-              "baseUrl": "${env.CERT_SERVICE_URL}"
-            }
+            "options": { "baseUrl": "${env.CERT_SERVICE_URL}" }
           },
           "policies": {
-            "inbound": [
-              "mtls-inbound-policy",
-              "cert-validation-policy",
-              "rate-limit-policy"
-            ]
+            "inbound": ["api-key-inbound-policy", "rate-limit-policy"]
           }
         }
       }
     },
+
     "/v1/certificates/:id": {
-      "x-zuplo-path": {
-        "pathType": "open-api"
-      },
+      "x-zuplo-path": { "pathType": "open-api" },
       "get": {
-        "summary": "Consultar certificado",
+        "summary": "Get certificate details",
+        "description": "**Auth: API Key** — Returns certificate metadata (no private key).",
         "operationId": "certificates-get",
+        "security": [{ "ApiKey": [] }],
         "x-zuplo-route": {
           "corsPolicy": "none",
           "handler": {
             "export": "urlForwardHandler",
             "module": "$import(@zuplo/runtime)",
-            "options": {
-              "baseUrl": "${env.CERT_SERVICE_URL}"
-            }
+            "options": { "baseUrl": "${env.CERT_SERVICE_URL}" }
           },
-          "policies": {
-            "inbound": ["mtls-inbound-policy", "cert-validation-policy"]
-          }
+          "policies": { "inbound": ["api-key-inbound-policy"] }
         }
       },
       "delete": {
-        "summary": "Revogar certificado",
+        "summary": "Revoke certificate",
+        "description": "**Auth: mTLS** — Revoke a certificate. Requires presenting your active client certificate.",
         "operationId": "certificates-revoke",
+        "security": [{ "mTLS": [] }],
         "x-zuplo-route": {
           "corsPolicy": "none",
           "handler": {
             "export": "urlForwardHandler",
             "module": "$import(@zuplo/runtime)",
-            "options": {
-              "baseUrl": "${env.CERT_SERVICE_URL}"
-            }
+            "options": { "baseUrl": "${env.CERT_SERVICE_URL}" }
           },
           "policies": {
             "inbound": ["mtls-inbound-policy", "cert-validation-policy"]
@@ -92,26 +97,77 @@
         }
       }
     },
+
     "/v1/certificates/:id/renew": {
-      "x-zuplo-path": {
-        "pathType": "open-api"
-      },
+      "x-zuplo-path": { "pathType": "open-api" },
       "post": {
-        "summary": "Renovar certificado",
+        "summary": "Renew certificate",
+        "description": "**Auth: mTLS** — Renew before expiry. Present your current certificate; a new one is issued and the old one revoked.",
         "operationId": "certificates-renew",
+        "security": [{ "mTLS": [] }],
         "x-zuplo-route": {
           "corsPolicy": "none",
           "handler": {
             "export": "urlForwardHandler",
             "module": "$import(@zuplo/runtime)",
-            "options": {
-              "baseUrl": "${env.CERT_SERVICE_URL}"
-            }
+            "options": { "baseUrl": "${env.CERT_SERVICE_URL}" }
           },
           "policies": {
             "inbound": ["mtls-inbound-policy", "cert-validation-policy"]
           }
         }
+      }
+    },
+
+    "/v1/api/:path*": {
+      "x-zuplo-path": { "pathType": "open-api" },
+      "get": {
+        "summary": "Protected API — GET",
+        "description": "**Auth: mTLS** — All requests must present a valid client certificate.",
+        "operationId": "api-proxy-get",
+        "security": [{ "mTLS": [] }],
+        "x-zuplo-route": {
+          "corsPolicy": "none",
+          "handler": {
+            "export": "urlForwardHandler",
+            "module": "$import(@zuplo/runtime)",
+            "options": { "baseUrl": "${env.BACKEND_API_URL}" }
+          },
+          "policies": {
+            "inbound": ["mtls-inbound-policy", "cert-validation-policy", "rate-limit-policy"]
+          }
+        }
+      },
+      "post": {
+        "summary": "Protected API — POST",
+        "description": "**Auth: mTLS**",
+        "operationId": "api-proxy-post",
+        "security": [{ "mTLS": [] }],
+        "x-zuplo-route": {
+          "corsPolicy": "none",
+          "handler": {
+            "export": "urlForwardHandler",
+            "module": "$import(@zuplo/runtime)",
+            "options": { "baseUrl": "${env.BACKEND_API_URL}" }
+          },
+          "policies": {
+            "inbound": ["mtls-inbound-policy", "cert-validation-policy", "rate-limit-policy"]
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Obtain your API Key from the Zuplo Developer Portal after registering your tenant."
+      },
+      "mTLS": {
+        "type": "mutualTLS",
+        "description": "Present the client certificate issued by this platform. Obtain it first via the API Key flow."
       }
     }
   }

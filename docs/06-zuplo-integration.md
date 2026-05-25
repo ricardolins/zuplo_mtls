@@ -2,181 +2,213 @@
 
 ## Overview
 
-Zuplo acts as the **entry-point API Gateway** for all mTLS-protected APIs. It:
+The Zuplo platform serves **two distinct roles** in this architecture:
 
-1. **Receives** HTTPS requests with a client certificate (mTLS)
-2. **Validates** the certificate via a custom policy
-3. **Injects** the certificate identity into request headers
-4. **Forwards** to the backend (Certificate Service or downstream APIs)
-5. **Documents** via the built-in Developer Portal
+| Role | Component | Purpose |
+|------|-----------|---------|
+| **Developer Portal** | Zuplo Portal | Partner self-service: register, get API Key, request certificate, view docs |
+| **API Gateway** | Zuplo Runtime | Route and authenticate all API calls (API Key for bootstrap, mTLS for everything else) |
 
-## Architecture: Zuplo + Ingress NGINX
+The **Developer Portal is the single entry point for partners**. It guides them through onboarding and certificate issuance, then redirects all API operations to the gateway.
+
+---
+
+## The Two-Tier Authentication Model
+
+This solves the **bootstrap problem**: *how do you request an mTLS certificate if you need mTLS to call the API?*
 
 ```
-Internet
-    │
-    ▼ HTTPS (port 443)
-NodeBalancer (Linode LB)
-    │
-    ▼
-Ingress NGINX
-    │  ssl_passthrough=false
-    │  nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
-    │  nginx.ingress.kubernetes.io/auth-tls-secret: "pki-system/step-ca-root-cert"
-    │  Injects headers: X-Client-Cert, X-Client-Cert-DN, X-Client-Cert-Serial
-    │
-    ▼
-Zuplo Gateway (runtime)
-    │  Policy: mtls-inbound-policy (reads injected headers)
-    │  Policy: cert-validation-policy (validates CN, OCSP)
-    │  Policy: rate-limit-policy
-    │
-    ▼
-Backend Service
+┌──────────────────────────────────────────────────────────────────┐
+│  TIER 1 — Bootstrap (API Key)                                    │
+│                                                                  │
+│  1. Partner opens Developer Portal                               │
+│  2. Registers tenant → receives API Key                          │
+│  3. Fills certificate request form in portal                     │
+│  4. Portal calls POST /v1/certificates with X-API-Key header    │
+│  5. Certificate issued and displayed/downloaded in portal        │
+│                                                                  │
+│  Endpoints:  POST /v1/certificates                               │
+│              GET  /v1/certificates                               │
+│              GET  /v1/certificates/:id                           │
+│  Auth:       X-API-Key header                                   │
+└──────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────┐
+│  TIER 2 — All Subsequent Operations (mTLS)                       │
+│                                                                  │
+│  Once the partner has a certificate, ALL API calls use mTLS.    │
+│                                                                  │
+│  Endpoints:  DELETE /v1/certificates/:id  (revoke)              │
+│              POST   /v1/certificates/:id/renew                   │
+│              ALL    /v1/api/*  (protected business APIs)         │
+│  Auth:       Client certificate (mutual TLS)                     │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-## 1. Create a Zuplo project
+---
+
+## Developer Portal Configuration
+
+### 1. Create the Zuplo project
 
 1. Go to https://portal.zuplo.com
-2. Create a new project: **"baas-mtls-gateway"**
-3. Environment: Production → point to `api.zuplo.baas.io`
+2. Create new project: **"baas-mtls-gateway"**
+3. Connect your GitHub repo (`ricardolins/zuplo_mtls`)
 
-## 2. Configure environment variables
+### 2. Configure the Developer Portal pages
 
-In Zuplo panel > Settings > Environment Variables:
+The portal needs a custom **Certificate Request** page that:
+1. Shows the partner's current certificates and their status
+2. Provides a form to request a new certificate (CN, organization, TTL)
+3. Submits the form to `POST /v1/certificates` with the partner's API Key
+4. Displays the resulting certificate for download
 
-| Variable | Value |
-|----------|-------|
-| `CERT_SERVICE_URL` | `http://certificate-service-svc.certificate-service` |
-| `CA_FINGERPRINT` | Root CA fingerprint |
-| `OCSP_URL` | `http://step-ca-svc.pki-system:8080` |
-
-## 3. Add policies to the project
-
-Copy the files from [zuplo/policies/](../zuplo/policies/) into your Zuplo project:
-
-```
-zuplo/
-├── policies/
-│   ├── mtls-policy.ts             → main mTLS policy
-│   └── cert-validation-policy.ts  → CN validation + OCSP
-└── routes.oas.json                → routes with applied policies
-```
-
-## 4. Configure the mTLS policy in the Developer Portal
-
-In the project's `zuplo.jsonc` file:
-
-```jsonc
-{
-  "policies": [
-    {
-      "name": "mtls-inbound-policy",
-      "policyType": "custom-code-inbound",
-      "handler": {
-        "export": "mtlsInboundPolicy",
-        "module": "$import(./policies/mtls-policy)"
-      }
-    },
-    {
-      "name": "cert-validation-policy",
-      "policyType": "custom-code-inbound",
-      "handler": {
-        "export": "certValidationPolicy",
-        "module": "$import(./policies/cert-validation-policy)",
-        "options": {
-          "allowedCommonNames": ["*.api.baas.io"],
-          "checkOcsp": true,
-          "ocspUrl": "$env(OCSP_URL)"
-        }
-      }
-    },
-    {
-      "name": "rate-limit-policy",
-      "policyType": "rate-limit-inbound",
-      "handler": {
-        "rateLimitBy": "header",
-        "headerName": "X-Authenticated-CN",
-        "requestsAllowed": 1000,
-        "timeWindowMinutes": 1
-      }
-    }
-  ]
-}
-```
-
-## 5. Developer Portal (Zuplo)
-
-Zuplo automatically generates a Developer Portal with:
-
-- OpenAPI documentation for all routes
-- Request playground for testing
-- Onboarding guides for partners
-
-### Customize the portal
+In Zuplo, create `docs/` pages in the portal:
 
 ```
 zuplo/
 └── docs/
-    ├── index.md           → portal landing page
-    ├── authentication.md  → mTLS guide for partners
-    └── quickstart.md      → getting started
+    ├── index.md              → "Welcome to BaaS mTLS Platform"
+    ├── getting-started.md    → Step-by-step: register → get cert → call API
+    ├── authentication.md     → Explains API Key (bootstrap) vs mTLS
+    └── certificate-guide.md  → How to configure your client (curl, Node.js, Python)
 ```
 
-### Developer Portal URL
+### 3. API Key management in the portal
 
-After deployment: `https://baas-mtls-gateway.zuplo.io`
+Zuplo Developer Portal includes built-in API Key management:
 
-## 6. Testing in Zuplo
+- Partners self-generate keys from the portal
+- Keys are scoped to a tenant ID (stored in key metadata)
+- Keys can be rotated or revoked from the portal
+- The `api-key-inbound-policy` reads `keyData.metadata.tenantId` to identify the partner
 
-```bash
-# Without certificate — should return 401
-curl https://baas-mtls-gateway.zuplo.io/v1/certificates
+### 4. Environment variables
 
-# With valid certificate — should return 200
-curl --cert ./certs-output/client.crt \
-     --key  ./certs-output/client.key \
-     https://baas-mtls-gateway.zuplo.io/v1/certificates
+In Zuplo > Settings > Environment Variables:
+
+| Variable | Value |
+|----------|-------|
+| `CERT_SERVICE_URL` | `http://certificate-service-svc.certificate-service` |
+| `BACKEND_API_URL` | URL of your protected backend services |
+| `OCSP_URL` | `http://step-ca-svc.pki-system:8080` |
+
+---
+
+## Gateway Policies
+
+All policies live in `zuplo/policies/`:
+
+### `api-key-policy.ts` — Bootstrap flow
+
+Validates the `X-API-Key` header against the Zuplo key store. Injects `X-Tenant-Id` and `X-Auth-Method: api-key` into forwarded requests.
+
+```
+POST /v1/certificates
+  X-API-Key: zpka_xxx
+  ──────────────────────────────────────────────►
+  [api-key-inbound-policy]
+    • Verify key against Zuplo key store
+    • Extract tenantId from key metadata
+    • Inject X-Tenant-Id header
+  ──────────────────────────────────────────────►
+  Certificate Service
 ```
 
-## 7. mTLS configuration in Ingress NGINX
+### `mtls-policy.ts` — Ongoing API calls
 
-Ingress NGINX needs the CA bundle to validate the client certificate:
+Reads the client certificate injected by Ingress NGINX as `X-Client-Cert-*` headers. Validates expiry and extracts CN.
 
-```bash
-# Create Secret with CA bundle in pki-system namespace
-kubectl create secret generic step-ca-root-cert \
-  --namespace pki-system \
-  --from-file=ca.crt=./root_ca.crt
-
-# Verify the configuration
-kubectl get ingress certificate-service-ingress -n certificate-service -o yaml
+```
+DELETE /v1/certificates/:id
+  (TLS with client certificate)
+  ──────────────────────────────────────────────►
+  [Ingress NGINX validates cert against Root CA]
+  [Injects X-Client-Cert-DN, X-Client-Cert-Expiry]
+  ──────────────────────────────────────────────►
+  [mtls-inbound-policy]
+    • Read X-Client-Cert-DN header
+    • Validate expiry
+    • Inject X-Authenticated-CN
+  ──────────────────────────────────────────────►
+  [cert-validation-policy]
+    • CN allowlist check (optional)
+    • OCSP real-time check (optional)
+  ──────────────────────────────────────────────►
+  Certificate Service
 ```
 
-### Critical Ingress annotations
+### `cert-validation-policy.ts` — CN allowlist + OCSP
+
+Applied after `mtls-policy`. Optionally checks the CN against a per-route allowlist and queries the OCSP endpoint for real-time revocation status.
+
+---
+
+## Full Route Map
+
+| Method | Path | Auth | Backend |
+|--------|------|------|---------|
+| POST | `/v1/tenants` | None (rate limited) | Certificate Service |
+| POST | `/v1/certificates` | API Key | Certificate Service |
+| GET | `/v1/certificates` | API Key | Certificate Service |
+| GET | `/v1/certificates/:id` | API Key | Certificate Service |
+| DELETE | `/v1/certificates/:id` | mTLS | Certificate Service |
+| POST | `/v1/certificates/:id/renew` | mTLS | Certificate Service |
+| * | `/v1/api/*` | mTLS | Backend services |
+
+---
+
+## Ingress NGINX — mTLS termination
+
+Ingress NGINX validates the client certificate and injects headers **before** the request reaches Zuplo:
 
 ```yaml
+# Critical annotations on the Ingress resource
 nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
-# "on"       = mTLS required
-# "optional" = mTLS optional (allows requests without cert)
-# "off"      = disable mTLS
-
 nginx.ingress.kubernetes.io/auth-tls-secret: "pki-system/step-ca-root-cert"
 nginx.ingress.kubernetes.io/auth-tls-verify-depth: "2"
 nginx.ingress.kubernetes.io/auth-tls-pass-certificate-to-upstream: "true"
-# Injects the cert as X-Client-Cert header for Zuplo to process
 ```
 
-## 8. Headers injected by Ingress
+Headers injected for Zuplo to consume:
 
-After mTLS validation by Ingress NGINX, the following headers reach Zuplo:
-
-| Header | Example value |
-|--------|--------------|
-| `X-Client-Cert` | URL-encoded PEM certificate |
+| Header | Value |
+|--------|-------|
+| `X-Client-Cert` | URL-encoded PEM |
 | `X-Client-Cert-DN` | `CN=partner-a.api.baas.io,O=Partner A` |
 | `X-Client-Cert-Serial` | `3a:f2:...` |
-| `X-Client-Cert-Expiry` | `Dec 31 23:59:59 2025 GMT` |
+| `X-Client-Cert-Expiry` | `Aug 23 10:05:00 2025 GMT` |
 | `X-Client-Cert-Issuer` | `CN=BaaS mTLS Intermediate CA` |
 
-The `mtls-inbound-policy.ts` policy reads these headers and injects `X-Authenticated-CN` for use by backends.
+> **Note:** The API Key endpoints (`/v1/certificates` POST/GET) do **not** require a client certificate. On those routes, Ingress NGINX must be set to `auth-tls-verify-client: "optional"` so requests without a cert are still forwarded to Zuplo (where the API Key policy handles auth).
+
+---
+
+## Testing
+
+```bash
+# === Bootstrap flow (API Key) ===
+
+# 1. Register tenant (no auth)
+curl -X POST https://api.zuplo.baas.io/v1/tenants \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Fintech Alpha","legalName":"Fintech Alpha Inc","contactEmail":"tech@fa.com"}'
+
+# 2. Issue certificate (API Key from portal)
+curl -X POST https://api.zuplo.baas.io/v1/certificates \
+  -H "X-API-Key: zpka_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{"commonName":"fintech-alpha.api.baas.io","organization":"Fintech Alpha Inc","ttl":"2160h"}'
+
+# === mTLS flow ===
+
+# 3. Call protected API (certificate required)
+curl --cert ./certs-output/client.crt \
+     --key  ./certs-output/client.key \
+     https://api.zuplo.baas.io/v1/api/payments
+
+# 4. Renew certificate (mTLS)
+curl --cert ./certs-output/client.crt \
+     --key  ./certs-output/client.key \
+     -X POST https://api.zuplo.baas.io/v1/certificates/CERT_ID/renew
+```

@@ -1,20 +1,52 @@
 # 08 — Full BaaS Flow
 
-## Partner Journey (from zero to mTLS in production)
-
-### Phase 1: Onboarding
+## Partner Journey Overview
 
 ```
-Partner                  API                    Back-office
-   │                      │                          │
-   │  Registration        │                          │
-   │──POST /v1/tenants───►│                          │
-   │  {name, cnpj, email} │                          │
-   │                      │  Validate data           │
-   │                      │─────────────────────────►│
-   │                      │◄─────────────────────────│
-   │◄── {tenant_id} ──────│                          │
-   │                      │                          │
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│  PHASE 1: ONBOARDING (one-time, via Developer Portal)           │
+│  ─────────────────────────────────────────────────────────────  │
+│  Partner opens Zuplo Developer Portal                           │
+│  → Registers organization → Receives API Key                    │
+│  → Fills certificate request form                               │
+│  → Portal calls POST /v1/certificates (X-API-Key auth)          │
+│  → Downloads certificate + private key                          │
+│                                                                 │
+│  PHASE 2: API ACCESS (ongoing, mTLS)                            │
+│  ─────────────────────────────────────────────────────────────  │
+│  Partner configures their HTTP client with cert + key           │
+│  → All API calls go through Zuplo Gateway with mTLS             │
+│  → Zuplo validates cert, injects CN, forwards to backend        │
+│                                                                 │
+│  PHASE 3: MAINTENANCE (renewal/revocation, mTLS)                │
+│  ─────────────────────────────────────────────────────────────  │
+│  Renewal before expiry via portal (mTLS + x5c provisioner)     │
+│  Revocation if key is compromised (mTLS)                        │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Phase 1A: Tenant Registration (Developer Portal)
+
+```
+Partner Browser        Zuplo Dev Portal       Zuplo Gateway     Cert Service
+      │                      │                      │                 │
+      │  Open portal URL     │                      │                 │
+      │─────────────────────►│                      │                 │
+      │  Fill sign-up form   │                      │                 │
+      │  (name, email, org)  │                      │                 │
+      │─────────────────────►│                      │                 │
+      │                      │  POST /v1/tenants    │                 │
+      │                      │─────────────────────►│                 │
+      │                      │                      │────────────────►│
+      │                      │                      │◄── {tenant_id} ─│
+      │                      │◄─────────────────────│                 │
+      │  API Key created &   │                      │                 │
+      │  displayed in portal │                      │                 │
+      │◄─────────────────────│                      │                 │
 ```
 
 **Request:**
@@ -25,7 +57,6 @@ Content-Type: application/json
 {
   "name": "Fintech Alpha",
   "legalName": "Fintech Alpha Payments Inc",
-  "cnpj": "12345678000190",
   "contactEmail": "tech@fintechalpha.com"
 }
 ```
@@ -42,29 +73,37 @@ Content-Type: application/json
 
 ---
 
-### Phase 2: mTLS Certificate Issuance
+## Phase 1B: Certificate Request (Developer Portal → API Key)
 
 ```
-Partner              Certificate Service       Step-CA
-   │                         │                     │
-   │  POST /v1/certificates  │                     │
-   │──X-Tenant-Id: uuid ────►│                     │
-   │  {cn, org, ttl}         │                     │
-   │                         │  1. Generate ECDSA  │
-   │                         │     key pair        │
-   │                         │  2. Create CSR      │
-   │                         │  3. Get OTT token   │
-   │                         │─────sign(CSR)───────►│
-   │                         │◄────signed cert ─────│
-   │                         │                     │
-   │◄─{cert, key, chain}─────│                     │
+Partner Browser        Zuplo Dev Portal       Zuplo Gateway    Cert Service   Step-CA
+      │                      │                      │                │             │
+      │  Fill cert form      │                      │                │             │
+      │  (CN, org, TTL)      │                      │                │             │
+      │─────────────────────►│                      │                │             │
+      │                      │  POST /v1/certificates               │             │
+      │                      │  X-API-Key: zpka_xxx │                │             │
+      │                      │─────────────────────►│                │             │
+      │                      │                 [api-key-policy]      │             │
+      │                      │                 validates key         │             │
+      │                      │                 injects X-Tenant-Id  │             │
+      │                      │                      │────────────────►│             │
+      │                      │                      │                │──sign(CSR)──►│
+      │                      │                      │                │◄─signed cert─│
+      │                      │                      │◄───────────────│             │
+      │                      │◄─────────────────────│                │             │
+      │  Certificate ready   │                      │                │             │
+      │  in portal UI        │                      │                │             │
+      │◄─────────────────────│                      │                │             │
+      │  [Download .crt]     │                      │                │             │
+      │  [Download .key]     │                      │                │             │
 ```
 
-**Request:**
+**Portal sends to Gateway:**
 ```http
 POST /v1/certificates
+X-API-Key: zpka_xxxxxxxxxxxxxxxxxxxxxxxx
 Content-Type: application/json
-X-Tenant-Id: 550e8400-e29b-41d4-a716-446655440000
 
 {
   "commonName": "fintech-alpha.api.baas.io",
@@ -79,7 +118,6 @@ X-Tenant-Id: 550e8400-e29b-41d4-a716-446655440000
 ```json
 {
   "id": "7f3d9a2e-1234-5678-abcd-ef0123456789",
-  "serialNumber": "4a:b2:c3:d4:e5:f6",
   "commonName": "fintech-alpha.api.baas.io",
   "certPem": "-----BEGIN CERTIFICATE-----\n...",
   "chainPem": "-----BEGIN CERTIFICATE-----\n...",
@@ -90,114 +128,148 @@ X-Tenant-Id: 550e8400-e29b-41d4-a716-446655440000
 }
 ```
 
-> **IMPORTANT:** Store `privateKeyPem` in a secure location. This is the only time the private key is returned.
+> **IMPORTANT:** The portal should display the `privateKeyPem` for download only once and never store it. This is the only time the private key is returned.
 
 ---
 
-### Phase 3: Client Configuration
+## Phase 2: API Calls via mTLS
 
-The partner saves the certificate and private key:
+After downloading the certificate and key from the portal, the partner configures their client:
 
 ```bash
-# Save certificate and key
+# Store cert and key from the portal download
 echo "$CERT_PEM" > client.crt
 echo "$KEY_PEM"  > client.key
 chmod 600 client.key
-
-# Verify the certificate
-openssl x509 -in client.crt -noout -text | grep -E "Subject:|Not After:"
-# Subject: CN=fintech-alpha.api.baas.io, O=Fintech Alpha...
-# Not After: Aug 23 10:05:00 2025 GMT
 ```
 
----
-
-### Phase 4: API Call via mTLS
+All subsequent calls use mTLS — no API Key needed:
 
 ```
-Partner                       Ingress NGINX          Zuplo           Backend
-   │                               │                    │                │
-   │──TLS ClientHello─────────────►│                    │                │
-   │◄──ServerHello + ServerCert────│                    │                │
-   │──ClientCert + ClientVerify───►│                    │                │
-   │   (fintech-alpha.api.baas.io) │                    │                │
-   │                               │ Validate vs CA     │                │
-   │                               │ Inject headers     │                │
-   │◄──TLS Finished────────────────│                    │                │
-   │                               │                    │                │
-   │──GET /v1/certificates─────────────────────────────►│                │
-   │   X-Client-Cert-DN: CN=...    │                    │                │
-   │                               │                    │ mtls-policy    │
-   │                               │                    │ cert-validate  │
-   │                               │                    │────────────────►│
-   │                               │                    │◄────────────────│
-   │◄──200 OK──────────────────────────────────────────────────────────── │
+Partner HTTP Client      Ingress NGINX          Zuplo Gateway       Backend
+      │                       │                      │                  │
+      │──TLS ClientHello─────►│                      │                  │
+      │◄──ServerHello+Cert────│                      │                  │
+      │──ClientCert+Verify───►│                      │                  │
+      │   fintech-alpha.api…  │                      │                  │
+      │                       │ Validate vs Root CA  │                  │
+      │                       │ Inject X-Client-Cert-*                  │
+      │◄──TLS Finished────────│                      │                  │
+      │                       │                      │                  │
+      │──GET /v1/api/payments───────────────────────►│                  │
+      │                       │              [mtls-policy]              │
+      │                       │              reads X-Client-Cert-DN     │
+      │                       │              injects X-Authenticated-CN │
+      │                       │              [cert-validation-policy]   │
+      │                       │              OCSP check                 │
+      │                       │                      │─────────────────►│
+      │                       │                      │◄─────────────────│
+      │◄──200 OK ───────────────────────────────────────────────────────│
 ```
 
-**Request with mTLS:**
+**Request (curl example):**
 ```bash
 curl --cert ./client.crt \
      --key  ./client.key \
-     https://api.zuplo.baas.io/v1/certificates \
-     -H "X-Tenant-Id: 550e8400-e29b-41d4-a716-446655440000"
+     https://api.zuplo.baas.io/v1/api/payments \
+     -H "Content-Type: application/json"
 ```
 
 ---
 
-### Phase 5: Automatic Renewal (before the 90-day expiry)
+## Phase 3A: Certificate Renewal (mTLS)
+
+Renewal uses the **x5c provisioner** — the existing cert proves identity, a new cert is issued:
 
 ```
-cert-manager           Step-CA           Partner
-     │                    │                  │
-     │ Detects TTL < 25%  │                  │
-     │──CertificateRequest►│                  │
-     │◄──signed cert───────│                  │
-     │                    │                  │
-     │  Updates K8s Secret │                  │
-     │                    │  Notification    │
-     │                    │──webhook────────►│
-     │                    │  (new cert)      │
-```
-
-Renewal for partner certificates **is not automatic** — the partner must:
-1. Receive the expiry notification (webhook or email)
-2. Call `POST /v1/certificates/{id}/renew`
-3. Or call `POST /v1/certificates` to issue a new certificate
-
----
-
-### Phase 6: Revocation
-
-```
-Partner              Certificate Service       Step-CA        Zuplo
-   │                         │                     │              │
-   │  DELETE /v1/certs/{id}  │                     │              │
-   │──X-Tenant-Id: uuid ────►│                     │              │
-   │  {reason: keyCompromise}│                     │              │
-   │                         │──revoke(serial)────►│              │
-   │                         │◄──ok────────────────│              │
-   │◄──204 No Content────────│                     │              │
-   │                         │  CRL updated        │              │
-   │                         │  OCSP responds      │              │
-   │                         │  "revoked"          │              │
-   │                         │                     │              │
-   │  Attempt to use revoked cert                  │              │
-   │──mTLS request───────────────────────────────►│              │
-   │                         │                     │ OCSP check  │
-   │                         │                     │◄────────────│
-   │                         │                     │ "revoked"   │
-   │◄──401 CERT_REVOKED──────────────────────────── │            │
+Partner                  Zuplo Gateway        Cert Service    Step-CA (x5c)
+   │                          │                    │               │
+   │  POST /v1/certs/:id/renew│                    │               │
+   │  (mTLS with current cert)│                    │               │
+   │─────────────────────────►│                    │               │
+   │                    [mtls-policy validates]     │               │
+   │                          │───────────────────►│               │
+   │                          │                    │──x5c sign────►│
+   │                          │                    │  (old cert     │
+   │                          │                    │   as proof)    │
+   │                          │                    │◄──new cert─────│
+   │                          │                    │  old cert      │
+   │                          │                    │  revoked       │
+   │                          │◄───────────────────│               │
+   │◄─────────────────────────│                    │               │
+   │  New cert returned       │                    │               │
+   │  (update client config)  │                    │               │
 ```
 
 ---
 
-## Security considerations per phase
+## Phase 3B: Certificate Revocation (mTLS)
+
+```
+Partner                  Zuplo Gateway        Cert Service    Step-CA
+   │                          │                    │              │
+   │  DELETE /v1/certs/:id    │                    │              │
+   │  (mTLS + reason)         │                    │              │
+   │─────────────────────────►│                    │              │
+   │                          │───────────────────►│              │
+   │                          │                    │──revoke──────►│
+   │                          │                    │◄─ok───────────│
+   │                          │◄───────────────────│              │
+   │◄── 204 No Content ───────│                    │              │
+   │                          │  CRL updated        │              │
+   │                          │  OCSP: "revoked"    │              │
+   │                          │                    │              │
+   │  Subsequent attempt with │                    │              │
+   │  revoked cert:           │                    │              │
+   │─────────────────────────►│                    │              │
+   │                 [cert-validation-policy]       │              │
+   │                 OCSP → "revoked"              │              │
+   │◄── 401 CERT_REVOKED ─────│                    │              │
+```
+
+---
+
+## Authentication State Machine
+
+```
+                   ┌─────────────┐
+                   │  Unregistered│
+                   └──────┬──────┘
+                          │ POST /v1/tenants (no auth)
+                          ▼
+                   ┌─────────────┐
+                   │  Registered  │ ← has API Key from portal
+                   └──────┬──────┘
+                          │ POST /v1/certificates (API Key)
+                          ▼
+                   ┌─────────────┐
+                   │  Certified   │ ← has mTLS certificate
+                   └──────┬──────┘
+                          │ mTLS on all subsequent API calls
+                          ▼
+                   ┌─────────────────────────┐
+                   │  Fully Operational (mTLS)│
+                   └─────────────────────────┘
+                          │
+              ┌───────────┴───────────┐
+              │                       │
+        cert expiring             key compromised
+              │                       │
+     POST .../renew            DELETE .../revoke
+     (mTLS + x5c)              (mTLS + reason)
+              │                       │
+       new cert issued         cert revoked → back to "Registered"
+```
+
+---
+
+## Security Notes
 
 | Phase | Risk | Mitigation |
 |-------|------|-----------|
-| Issuance | Tenant impersonation | Strong authentication on /v1/certificates |
-| Delivery | Private key interception | HTTPS required + key delivered only once |
-| Storage | Key leakage | HSM or secret manager on partner side |
-| Usage (mTLS) | Man-in-the-middle | Mutual TLS |
-| Renewal | Expired cert in production | 30-day notification + automatic renewal |
-| Revocation | Propagation delay | Real-time OCSP + short cache (5 min) |
+| Portal registration | Fake tenant creation | Rate limiting + email verification |
+| API Key issuance | Key leaked from portal | Keys have short TTL; replaced by cert after bootstrap |
+| Cert delivery | Private key interception | HTTPS-only; key displayed once in portal, never stored |
+| mTLS calls | Man-in-the-middle | Mutual TLS; cert pinned to Root CA |
+| Renewal | Expired cert in production | Portal shows expiry warnings; webhook notifications at T-30d |
+| Revocation | Delay in CRL propagation | OCSP real-time check (5-min cache) |

@@ -4,7 +4,7 @@ A **Mutual TLS (mTLS) as a Service** platform inspired by the Banking as a Servi
 
 - **Step-CA (Smallstep)** — Open-source, enterprise-grade Certificate Authority
 - **cert-manager** — Kubernetes-native certificate lifecycle management
-- **Zuplo** — API Gateway with mTLS enforcement and Developer Portal
+- **Zuplo** — Developer Portal (certificate request UI) + API Gateway (mTLS enforcement)
 - **Linode LKE** — Kubernetes Enterprise infrastructure
 - **Terraform** — Infrastructure as Code (IaC)
 
@@ -13,66 +13,61 @@ A **Mutual TLS (mTLS) as a Service** platform inspired by the Banking as a Servi
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        CLIENT / BaaS PARTNER                         │
-│                                                                      │
-│   1. Requests a certificate via REST API                            │
-│   2. Receives a certificate signed by the CA                        │
-│   3. Uses the certificate for mTLS calls to the gateway             │
-└──────────────────────────┬──────────────────────────────────────────┘
-                           │ HTTPS + mTLS
-                           ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                    ZUPLO API GATEWAY                                 │
-│                                                                      │
-│  ┌─────────────────┐  ┌──────────────────┐  ┌──────────────────┐   │
-│  │  mTLS Policy    │  │  Rate Limit      │  │  Auth Policy     │   │
-│  │  (cert verify)  │  │  Policy          │  │  (JWT / API Key) │   │
-│  └─────────────────┘  └──────────────────┘  └──────────────────┘   │
-│                                                                      │
-│  Developer Portal: documentation, onboarding, key management        │
-└──────────────────────────┬──────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│              LINODE KUBERNETES ENGINE (LKE)                          │
-│                                                                      │
-│  ┌─────────────────────────────────────────────────────────────┐    │
-│  │  Namespace: pki-system                                       │    │
-│  │                                                              │    │
-│  │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐   │    │
-│  │  │  Step-CA     │    │ cert-manager │    │  Certificate │   │    │
-│  │  │  (Root CA +  │◄───│  (Issuer /   │    │  Service API │   │    │
-│  │  │   Inter CA)  │    │   CertReq)   │    │  (REST API)  │   │    │
-│  │  └──────────────┘    └──────────────┘    └──────────────┘   │    │
-│  │                                                              │    │
-│  │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐   │    │
-│  │  │  PostgreSQL  │    │  Prometheus  │    │  Grafana     │   │    │
-│  │  │  (cert store)│    │  (metrics)   │    │  (dashboard) │   │    │
-│  │  └──────────────┘    └──────────────┘    └──────────────┘   │    │
-│  └─────────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          PARTNER / FINTECH                               │
+│                                                                         │
+│  FIRST TIME ONLY                          ONGOING API CALLS             │
+│  ─────────────────────                    ────────────────────          │
+│  1. Open Developer Portal                 3. Configure HTTP client      │
+│  2. Register → get API Key                   with cert + private key    │
+│     → fill cert form                      4. Call APIs via mTLS         │
+│     → download certificate                                              │
+└──────────────┬───────────────────────────────────┬──────────────────────┘
+               │ HTTPS + API Key                   │ HTTPS + mTLS
+               │ (bootstrap only)                  │ (all API calls)
+               ▼                                   ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          ZUPLO PLATFORM                                  │
+│                                                                         │
+│  ┌─────────────────────────────┐   ┌─────────────────────────────────┐  │
+│  │      DEVELOPER PORTAL       │   │          API GATEWAY            │  │
+│  │                             │   │                                 │  │
+│  │  • Partner self-onboarding  │   │  /v1/certificates  (API Key)   │  │
+│  │  • Certificate request form │   │  /v1/api/*         (mTLS)      │  │
+│  │  • Certificate status view  │   │                                 │  │
+│  │  • API documentation        │   │  Policies:                      │  │
+│  │  • API Key management       │   │  • api-key-policy (bootstrap)   │  │
+│  │                             │   │  • mtls-policy (ongoing)        │  │
+│  │  Calls gateway for all      │   │  • cert-validation-policy       │  │
+│  │  API operations             │   │  • rate-limit-policy            │  │
+│  └─────────────────────────────┘   └─────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+                                           │
+                                           ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      LINODE KUBERNETES ENGINE (LKE)                      │
+│                                                                         │
+│  ┌─────────────────────┐   ┌──────────────────┐   ┌─────────────────┐  │
+│  │  Certificate Service│   │  Step-CA          │   │  Prometheus +   │  │
+│  │  REST API           │──►│  (Root + Inter CA)│   │  Grafana        │  │
+│  └─────────────────────┘   └──────────────────┘   └─────────────────┘  │
+│  cert-manager + step-issuer  (Kubernetes certificate lifecycle)         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## BaaS Certificate Issuance Flow
+## Authentication Model
 
-```
-Partner           Certificate Service      Step-CA           Zuplo
-   │                      │                   │                 │
-   │──POST /certificates──►│                   │                 │
-   │  {tenant_id, cn, org} │                   │                 │
-   │                      │──sign_request─────►│                 │
-   │                      │◄──signed_cert──────│                 │
-   │◄──{cert, chain, key}──│                   │                 │
-   │                      │                   │                 │
-   │──── mTLS Request ────────────────────────────────────────►│
-   │     (client cert)    │                   │   validate cert  │
-   │                      │                   │◄────────────────│
-   │                      │                   │─────────────────►│
-   │◄── API Response ────────────────────────────────────────── │
-```
+| Stage | Authentication | How |
+|-------|---------------|-----|
+| Register tenant | None | Public endpoint, rate limited |
+| Request certificate | **API Key** | From Developer Portal after signup |
+| All subsequent API calls | **mTLS** | Client certificate issued in previous step |
+| Renew certificate | **mTLS** | x5c provisioner (current cert proves identity) |
+| Revoke certificate | **mTLS** | Presents current active certificate |
+
+This solves the **bootstrap problem**: you need a certificate to use mTLS, so the first certificate is obtained using an API Key from the Developer Portal.
 
 ---
 
@@ -81,50 +76,26 @@ Partner           Certificate Service      Step-CA           Zuplo
 ```
 zuplo_mtls/
 ├── README.md                      # This file
-├── ARCHITECTURE.md                # Detailed architecture
+├── ARCHITECTURE.md                # Detailed architecture + ADRs
 ├── .gitignore
 ├── docs/
-│   ├── 01-overview.md            # Overview and concepts
-│   ├── 02-pki-design.md          # PKI design (Root CA, Inter CA)
-│   ├── 03-linode-kubernetes.md   # LKE setup
-│   ├── 04-step-ca-setup.md       # CA configuration
-│   ├── 05-cert-manager-setup.md  # cert-manager on K8s
-│   ├── 06-zuplo-integration.md   # Zuplo integration
-│   ├── 07-certificate-lifecycle.md # Certificate lifecycle
-│   ├── 08-baas-flow.md           # Full BaaS flow
-│   └── 09-monitoring.md          # Observability
-├── infrastructure/
-│   └── terraform/                # IaC for Linode LKE
-│       ├── main.tf
-│       ├── providers.tf
-│       ├── variables.tf
-│       ├── outputs.tf
-│       └── modules/
-│           ├── lke-cluster/
-│           └── networking/
-├── kubernetes/
-│   ├── namespaces/               # Namespace definitions
-│   ├── cert-manager/             # Helm values + ClusterIssuer
-│   ├── step-ca/                  # CA deployment
-│   ├── certificate-service/      # Certificate API
-│   └── monitoring/               # Prometheus + Grafana
+│   ├── 01-overview.md            # Concepts: mTLS, PKI, X.509
+│   ├── 03-linode-kubernetes.md   # LKE setup + cost estimate
+│   ├── 04-step-ca-setup.md       # CA initialization + operations
+│   ├── 06-zuplo-integration.md   # Portal + Gateway configuration
+│   ├── 08-baas-flow.md           # Full partner journey with diagrams
+│   └── 09-monitoring.md          # Prometheus, Grafana, alerts
+├── infrastructure/terraform/      # IaC for Linode LKE
+├── kubernetes/                    # K8s manifests + Helm values
 ├── zuplo/
-│   ├── routes.oas.json           # OpenAPI routes
-│   └── policies/                 # mTLS policies
-├── certificate-service/          # Node.js/TypeScript API
-│   ├── src/
-│   ├── Dockerfile
-│   └── package.json
-├── scripts/
-│   ├── bootstrap-cluster.sh      # Initial cluster setup
-│   ├── setup-ca.sh               # Initialize the CA
-│   ├── issue-cert.sh             # Issue a certificate manually
-│   ├── revoke-cert.sh            # Revoke a certificate
-│   └── test-mtls.sh              # Test mTLS connection
-└── examples/
-    ├── client-curl/              # curl examples
-    ├── client-node/              # Node.js mTLS client
-    └── postman/                  # Postman collection
+│   ├── routes.oas.json           # OpenAPI routes (API Key + mTLS tiers)
+│   └── policies/
+│       ├── api-key-policy.ts     # Bootstrap: validates X-API-Key
+│       ├── mtls-policy.ts        # Ongoing: validates client certificate
+│       └── cert-validation-policy.ts  # CN allowlist + OCSP check
+├── certificate-service/           # Internal API (Node.js/TypeScript)
+├── scripts/                       # Operational scripts
+└── examples/                      # curl, Node.js client, Postman
 ```
 
 ---
@@ -150,19 +121,13 @@ zuplo_mtls/
 cd infrastructure/terraform
 cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars with your Linode token
-terraform init
-terraform plan
-terraform apply
+terraform init && terraform apply
 ```
 
-### 2. Bootstrap the Kubernetes cluster
+### 2. Bootstrap the cluster
 
 ```bash
-# Configure kubeconfig
-export KUBECONFIG=~/.kube/lke-mtls.yaml
-terraform -chdir=infrastructure/terraform output -raw kubeconfig | base64 -d > $KUBECONFIG
-
-# Bootstrap: installs cert-manager, step-ca, certificate-service
+export KUBECONFIG=.kubeconfig-lke
 ./scripts/bootstrap-cluster.sh
 ```
 
@@ -172,16 +137,26 @@ terraform -chdir=infrastructure/terraform output -raw kubeconfig | base64 -d > $
 ./scripts/setup-ca.sh
 ```
 
-### 4. Issue a test certificate
+### 4. Partner onboarding (via Zuplo Developer Portal)
+
+```
+1. Partner opens https://baas-mtls-gateway.zuplo.io
+2. Registers → receives API Key
+3. Fills certificate request form
+4. Downloads certificate + private key
+5. Configures mTLS client
+```
+
+### 5. Issue a test certificate (CLI)
 
 ```bash
 ./scripts/issue-cert.sh \
   --tenant-id "tenant-001" \
-  --common-name "partner.baas.local" \
+  --common-name "partner.api.baas.io" \
   --org "Financial Partner Inc"
 ```
 
-### 5. Test mTLS with Zuplo
+### 6. Test mTLS
 
 ```bash
 ./scripts/test-mtls.sh
@@ -192,12 +167,9 @@ terraform -chdir=infrastructure/terraform output -raw kubeconfig | base64 -d > $
 ## Documentation
 
 - [Overview and Concepts](docs/01-overview.md)
-- [PKI Design](docs/02-pki-design.md)
 - [Linode Kubernetes Setup](docs/03-linode-kubernetes.md)
 - [Step-CA Configuration](docs/04-step-ca-setup.md)
-- [cert-manager on Kubernetes](docs/05-cert-manager-setup.md)
-- [Zuplo Integration](docs/06-zuplo-integration.md)
-- [Certificate Lifecycle](docs/07-certificate-lifecycle.md)
+- [Zuplo Integration (Portal + Gateway)](docs/06-zuplo-integration.md)
 - [Full BaaS Flow](docs/08-baas-flow.md)
 - [Observability](docs/09-monitoring.md)
 
@@ -205,11 +177,12 @@ terraform -chdir=infrastructure/terraform output -raw kubeconfig | base64 -d > $
 
 ## Security
 
-- Root CA private keys generated offline (air-gapped) and stored in encrypted Kubernetes Secrets
-- Intermediate CA with 1-year validity; Root CA with 10-year validity
-- Leaf certificates with 90-day TTL (BaaS standard)
-- CRL (Certificate Revocation List) and OCSP enabled
-- All secrets managed via Kubernetes Secrets with optional HashiCorp Vault integration
+- Root CA private key generated offline (air-gapped), never in cluster
+- Intermediate CA on cluster with 1-year validity, auto-renewed by cert-manager
+- Partner certificates: 90-day TTL, renewable via mTLS (x5c)
+- API Keys: bootstrap only, scoped to one tenant, replaceable from Developer Portal
+- CRL + OCSP for real-time revocation status
+- All secrets in Kubernetes Secrets (encrypted at rest)
 
 ---
 
