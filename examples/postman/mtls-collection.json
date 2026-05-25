@@ -1,0 +1,126 @@
+{
+  "info": {
+    "name": "BaaS mTLS Platform",
+    "description": "Collection para testar o Certificate Service e APIs protegidas por mTLS",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "CERT_SERVICE_URL", "value": "https://certs.baas.io" },
+    { "key": "GATEWAY_URL",      "value": "https://api.zuplo.baas.io" },
+    { "key": "TENANT_ID",        "value": "550e8400-e29b-41d4-a716-446655440000" },
+    { "key": "CERT_ID",          "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Tenants",
+      "item": [
+        {
+          "name": "Criar Tenant",
+          "request": {
+            "method": "POST",
+            "url": "{{CERT_SERVICE_URL}}/v1/tenants",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Fintech Alpha\",\n  \"legalName\": \"Fintech Alpha Pagamentos S.A.\",\n  \"cnpj\": \"12345678000190\",\n  \"contactEmail\": \"tech@fintechalpha.com.br\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "const res = pm.response.json();",
+                "pm.collectionVariables.set('TENANT_ID', res.id);",
+                "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                "pm.test('Tem tenant_id', () => pm.expect(res.id).to.be.a('string'));"
+              ]
+            }
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Certificates",
+      "item": [
+        {
+          "name": "Emitir Certificado",
+          "request": {
+            "method": "POST",
+            "url": "{{CERT_SERVICE_URL}}/v1/certificates",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "X-Tenant-Id",   "value": "{{TENANT_ID}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"commonName\": \"fintech-alpha.api.baas.io\",\n  \"organization\": \"Fintech Alpha Pagamentos S.A.\",\n  \"country\": \"BR\",\n  \"ttl\": \"2160h\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "const res = pm.response.json();",
+                "pm.collectionVariables.set('CERT_ID', res.id);",
+                "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                "pm.test('Tem certPem', () => pm.expect(res.certPem).to.include('BEGIN CERTIFICATE'));",
+                "pm.test('Status ativo', () => pm.expect(res.status).to.eql('active'));"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Listar Certificados",
+          "request": {
+            "method": "GET",
+            "url": "{{CERT_SERVICE_URL}}/v1/certificates",
+            "header": [{ "key": "X-Tenant-Id", "value": "{{TENANT_ID}}" }]
+          }
+        },
+        {
+          "name": "Consultar Certificado",
+          "request": {
+            "method": "GET",
+            "url": "{{CERT_SERVICE_URL}}/v1/certificates/{{CERT_ID}}",
+            "header": [{ "key": "X-Tenant-Id", "value": "{{TENANT_ID}}" }]
+          }
+        },
+        {
+          "name": "Renovar Certificado",
+          "request": {
+            "method": "POST",
+            "url": "{{CERT_SERVICE_URL}}/v1/certificates/{{CERT_ID}}/renew",
+            "header": [{ "key": "X-Tenant-Id", "value": "{{TENANT_ID}}" }]
+          }
+        },
+        {
+          "name": "Revogar Certificado",
+          "request": {
+            "method": "DELETE",
+            "url": "{{CERT_SERVICE_URL}}/v1/certificates/{{CERT_ID}}",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Tenant-Id",  "value": "{{TENANT_ID}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"keyCompromise\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{CERT_SERVICE_URL}}/v1/health"
+          }
+        }
+      ]
+    }
+  ]
+}

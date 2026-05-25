@@ -1,0 +1,118 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "BaaS mTLS Platform",
+    "version": "1.0.0",
+    "description": "API protegida por mTLS para parceiros BaaS"
+  },
+  "paths": {
+    "/v1/certificates": {
+      "x-zuplo-path": {
+        "pathType": "open-api"
+      },
+      "post": {
+        "summary": "Emitir certificado mTLS",
+        "operationId": "certificates-issue",
+        "x-zuplo-route": {
+          "corsPolicy": "none",
+          "handler": {
+            "export": "urlForwardHandler",
+            "module": "$import(@zuplo/runtime)",
+            "options": {
+              "baseUrl": "${env.CERT_SERVICE_URL}"
+            }
+          },
+          "policies": {
+            "inbound": [
+              "mtls-inbound-policy",
+              "cert-validation-policy",
+              "rate-limit-policy"
+            ]
+          }
+        }
+      },
+      "get": {
+        "summary": "Listar certificados do tenant",
+        "operationId": "certificates-list",
+        "x-zuplo-route": {
+          "corsPolicy": "none",
+          "handler": {
+            "export": "urlForwardHandler",
+            "module": "$import(@zuplo/runtime)",
+            "options": {
+              "baseUrl": "${env.CERT_SERVICE_URL}"
+            }
+          },
+          "policies": {
+            "inbound": [
+              "mtls-inbound-policy",
+              "cert-validation-policy",
+              "rate-limit-policy"
+            ]
+          }
+        }
+      }
+    },
+    "/v1/certificates/:id": {
+      "x-zuplo-path": {
+        "pathType": "open-api"
+      },
+      "get": {
+        "summary": "Consultar certificado",
+        "operationId": "certificates-get",
+        "x-zuplo-route": {
+          "corsPolicy": "none",
+          "handler": {
+            "export": "urlForwardHandler",
+            "module": "$import(@zuplo/runtime)",
+            "options": {
+              "baseUrl": "${env.CERT_SERVICE_URL}"
+            }
+          },
+          "policies": {
+            "inbound": ["mtls-inbound-policy", "cert-validation-policy"]
+          }
+        }
+      },
+      "delete": {
+        "summary": "Revogar certificado",
+        "operationId": "certificates-revoke",
+        "x-zuplo-route": {
+          "corsPolicy": "none",
+          "handler": {
+            "export": "urlForwardHandler",
+            "module": "$import(@zuplo/runtime)",
+            "options": {
+              "baseUrl": "${env.CERT_SERVICE_URL}"
+            }
+          },
+          "policies": {
+            "inbound": ["mtls-inbound-policy", "cert-validation-policy"]
+          }
+        }
+      }
+    },
+    "/v1/certificates/:id/renew": {
+      "x-zuplo-path": {
+        "pathType": "open-api"
+      },
+      "post": {
+        "summary": "Renovar certificado",
+        "operationId": "certificates-renew",
+        "x-zuplo-route": {
+          "corsPolicy": "none",
+          "handler": {
+            "export": "urlForwardHandler",
+            "module": "$import(@zuplo/runtime)",
+            "options": {
+              "baseUrl": "${env.CERT_SERVICE_URL}"
+            }
+          },
+          "policies": {
+            "inbound": ["mtls-inbound-policy", "cert-validation-policy"]
+          }
+        }
+      }
+    }
+  }
+}

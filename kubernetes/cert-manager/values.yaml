@@ -1,0 +1,56 @@
+# Helm values para cert-manager v1.14+
+# Chart: jetstack/cert-manager
+
+installCRDs: true
+
+replicaCount: 2
+
+# Fixar nos nós PKI (pool dedicado)
+nodeSelector:
+  role: pki
+
+tolerations:
+  - key: "dedicated"
+    operator: "Equal"
+    value: "pki"
+    effect: "NoSchedule"
+
+# Métricas para Prometheus
+prometheus:
+  enabled: true
+  servicemonitor:
+    enabled: true
+    namespace: monitoring
+
+# Webhook HA
+webhook:
+  replicaCount: 2
+  nodeSelector:
+    role: pki
+  tolerations:
+    - key: "dedicated"
+      operator: "Equal"
+      value: "pki"
+      effect: "NoSchedule"
+
+cainjector:
+  replicaCount: 2
+  nodeSelector:
+    role: pki
+  tolerations:
+    - key: "dedicated"
+      operator: "Equal"
+      value: "pki"
+      effect: "NoSchedule"
+
+# Habilitar OCSP e CRL nos certificados gerenciados
+featureGates: "AdditionalCertificateOutputFormats=true"
+
+# Recursos
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

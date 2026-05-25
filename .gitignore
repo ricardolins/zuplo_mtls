@@ -1,0 +1,46 @@
+# Terraform
+infrastructure/terraform/.terraform/
+infrastructure/terraform/.terraform.lock.hcl
+infrastructure/terraform/terraform.tfstate
+infrastructure/terraform/terraform.tfstate.backup
+infrastructure/terraform/terraform.tfvars
+infrastructure/terraform/*.tfplan
+
+# Certificates and private keys — NUNCA versionar
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.der
+certs/
+secrets/
+
+# Kubeconfig
+*.kubeconfig
+kubeconfig
+.kube/
+
+# Node.js
+node_modules/
+dist/
+build/
+*.js.map
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+
+# Step-CA data (gerado localmente)
+step-ca-data/
+ca-data/

@@ -1,0 +1,74 @@
+# Helm values para kube-prometheus-stack
+# Chart: prometheus-community/kube-prometheus-stack
+
+prometheus:
+  prometheusSpec:
+    nodeSelector:
+      role: monitoring
+    retention: 30d
+    retentionSize: "40GB"
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: linode-block-storage-retain
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi
+
+    additionalScrapeConfigs:
+      - job_name: step-ca
+        static_configs:
+          - targets: ["step-ca-svc.pki-system.svc.cluster.local:9100"]
+        tls_config:
+          ca_file: /etc/prometheus/secrets/step-ca-root/root_ca.crt
+          insecure_skip_verify: false
+
+      - job_name: certificate-service
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [certificate-service]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+
+grafana:
+  enabled: true
+  nodeSelector:
+    role: monitoring
+  adminPassword: ""  # definido via Secret externo
+  persistence:
+    enabled: true
+    storageClassName: linode-block-storage-retain
+    size: 10Gi
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: mtls-baas
+          orgId: 1
+          folder: "mTLS BaaS"
+          type: file
+          disableDeletion: false
+          options:
+            path: /var/lib/grafana/dashboards/mtls-baas
+
+alertmanager:
+  enabled: true
+  nodeSelector:
+    role: monitoring
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: [alertname, namespace]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: default
+    receivers:
+      - name: default
+        webhook_configs:
+          - url: "http://certificate-service-svc.certificate-service/v1/internal/alerts"

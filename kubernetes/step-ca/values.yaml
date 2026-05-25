@@ -1,0 +1,102 @@
+# Helm values para Step-CA (smallstep/step-certificates)
+# Chart: smallstep/step-certificates
+
+# Configuração da CA
+ca:
+  name: "BaaS mTLS Root CA"
+  address: ":9000"
+  dns:
+    - step-ca-svc
+    - step-ca-svc.pki-system
+    - step-ca-svc.pki-system.svc.cluster.local
+    - ca.baas.io
+  db:
+    type: badgerV2
+    dataSource: /home/step/db
+
+# Provisioners configurados
+provisioners:
+  # JWK para uso pelo cert-manager
+  - name: cert-manager
+    type: JWK
+    options:
+      minTLSDur: 5m
+      maxTLSDur: 90d
+      defaultTLSDur: 90d
+
+  # ACME para renovação automática
+  - name: acme
+    type: ACME
+
+  # x5c para emissão com certificado de cliente
+  - name: x5c-provisioner
+    type: X5C
+    options:
+      roots: []  # preenchido com o cert do Root CA no setup
+
+# Chave da CA — gerada no init
+# NÃO incluir chaves reais aqui
+
+# Persistência
+persistence:
+  enabled: true
+  storageClass: "linode-block-storage-retain"
+  size: 10Gi
+  accessModes:
+    - ReadWriteOnce
+
+# Fixar nos nós PKI
+nodeSelector:
+  role: pki
+
+tolerations:
+  - key: "dedicated"
+    operator: "Equal"
+    value: "pki"
+    effect: "NoSchedule"
+
+# HA: 2 réplicas (step-ca suporta via shared storage)
+replicaCount: 2
+
+# Recursos para operações criptográficas
+resources:
+  requests:
+    cpu: 500m
+    memory: 256Mi
+  limits:
+    cpu: 2000m
+    memory: 1Gi
+
+# Service
+service:
+  type: ClusterIP
+  port: 9000
+  targetPort: 9000
+
+# OCSP endpoint
+ocsp:
+  enabled: true
+  port: 8080
+
+# CRL
+crl:
+  enabled: true
+  cacheDuration: 24h
+  renewBefore: 6h
+
+# Métricas Prometheus
+metrics:
+  enabled: true
+  path: /metrics
+  port: 9100
+
+# Segurança
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL

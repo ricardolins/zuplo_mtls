@@ -1,0 +1,24 @@
+# Copie este arquivo para terraform.tfvars e preencha os valores reais.
+# NUNCA versione terraform.tfvars (está no .gitignore).
+#
+# Para obter o token Linode: https://cloud.linode.com/profile/tokens
+
+linode_token = "<insira-seu-token-linode>"
+
+region             = "us-east"
+cluster_name       = "mtls-baas-prod"
+kubernetes_version = "1.29"
+high_availability  = true
+
+pki_node_type  = "g6-dedicated-2"
+pki_node_count = 2
+
+app_node_type  = "g6-standard-4"
+app_node_count = 3
+
+monitoring_node_type  = "g6-standard-2"
+monitoring_node_count = 1
+
+cert_service_domain = "certs.baas.io"
+
+tags = ["mtls-baas", "production", "pki"]
