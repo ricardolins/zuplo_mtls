@@ -1,0 +1,49 @@
+{
+  "policies": [
+    {
+      "name": "zuplo-api-key-auth-policy",
+      "policyType": "api-key-inbound",
+      "handler": {
+        "export": "ApiKeyInboundPolicy",
+        "module": "$import(@zuplo/runtime)"
+      }
+    },
+    {
+      "name": "api-key-inbound-policy",
+      "policyType": "custom-code-inbound",
+      "handler": {
+        "export": "apiKeyInboundPolicy",
+        "module": "$import(../modules/api-key-policy)"
+      }
+    },
+    {
+      "name": "mtls-inbound-policy",
+      "policyType": "custom-code-inbound",
+      "handler": {
+        "export": "mtlsInboundPolicy",
+        "module": "$import(../modules/mtls-policy)"
+      }
+    },
+    {
+      "name": "cert-validation-policy",
+      "policyType": "custom-code-inbound",
+      "handler": {
+        "export": "certValidationPolicy",
+        "module": "$import(../modules/cert-validation-policy)"
+      }
+    },
+    {
+      "name": "rate-limit-policy",
+      "policyType": "rate-limit-inbound",
+      "handler": {
+        "export": "default",
+        "module": "$import(@zuplo/runtime)",
+        "options": {
+          "rateLimitBy": "ip",
+          "requestsAllowed": 100,
+          "timeWindowMinutes": 1
+        }
+      }
+    }
+  ]
+}
