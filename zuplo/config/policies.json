@@ -13,7 +13,7 @@
       "policyType": "custom-code-inbound",
       "handler": {
         "export": "apiKeyInboundPolicy",
-        "module": "$import(../modules/api-key-policy)"
+        "module": "$import(./modules/api-key-policy)"
       }
     },
     {
@@ -21,7 +21,7 @@
       "policyType": "custom-code-inbound",
       "handler": {
         "export": "mtlsInboundPolicy",
-        "module": "$import(../modules/mtls-policy)"
+        "module": "$import(./modules/mtls-policy)"
       }
     },
     {
@@ -29,7 +29,7 @@
       "policyType": "custom-code-inbound",
       "handler": {
         "export": "certValidationPolicy",
-        "module": "$import(../modules/cert-validation-policy)"
+        "module": "$import(./modules/cert-validation-policy)"
       }
     },
     {
