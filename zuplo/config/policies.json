@@ -36,7 +36,7 @@
       "name": "rate-limit-policy",
       "policyType": "rate-limit-inbound",
       "handler": {
-        "export": "default",
+        "export": "RateLimitInboundPolicy",
         "module": "$import(@zuplo/runtime)",
         "options": {
           "rateLimitBy": "ip",
