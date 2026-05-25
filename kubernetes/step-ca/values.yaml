@@ -8,32 +8,25 @@ ca:
     - step-ca-svc
     - step-ca-svc.pki-system
     - step-ca-svc.pki-system.svc.cluster.local
-    - ca.baas.io
+    - ca.ricardolins.dev.br
   db:
     type: badgerV2
     dataSource: /home/step/db
 
-# Configured provisioners
 provisioners:
-  # JWK for use by cert-manager
   - name: cert-manager
     type: JWK
     options:
       minTLSDur: 5m
       maxTLSDur: 90d
       defaultTLSDur: 90d
-
-  # ACME for automatic renewal
   - name: acme
     type: ACME
-
-  # x5c for issuance with client certificate
   - name: x5c-provisioner
     type: X5C
     options:
-      roots: []  # filled with Root CA cert during setup
+      roots: []
 
-# Persistence
 persistence:
   enabled: true
   storageClass: "linode-block-storage-retain"
@@ -41,7 +34,7 @@ persistence:
   accessModes:
     - ReadWriteOnce
 
-# Pin to PKI nodes
+# Dev/test: single node, no taint required
 nodeSelector:
   role: pki
 
@@ -51,17 +44,15 @@ tolerations:
     value: "pki"
     effect: "NoSchedule"
 
-# HA: 2 replicas (step-ca supports via shared storage)
-replicaCount: 2
+replicaCount: 1
 
-# Resources for cryptographic operations
 resources:
   requests:
-    cpu: 500m
-    memory: 256Mi
+    cpu: 250m
+    memory: 128Mi
   limits:
-    cpu: 2000m
-    memory: 1Gi
+    cpu: 1000m
+    memory: 512Mi
 
 service:
   type: ClusterIP

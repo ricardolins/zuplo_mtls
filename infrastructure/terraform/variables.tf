@@ -7,31 +7,31 @@ variable "linode_token" {
 variable "region" {
   description = "Linode region for the LKE cluster"
   type        = string
-  default     = "us-east"
+  default     = "br-gru"
 }
 
 variable "cluster_name" {
   description = "LKE cluster name"
   type        = string
-  default     = "mtls-baas-prod"
+  default     = "mtls-baas"
 }
 
 variable "kubernetes_version" {
   description = "Kubernetes version on LKE"
   type        = string
-  default     = "1.29"
+  default     = "1.31"
 }
 
 variable "pki_node_count" {
   description = "Number of nodes in the PKI pool"
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "app_node_count" {
   description = "Number of nodes in the application pool"
   type        = number
-  default     = 3
+  default     = 1
 }
 
 variable "monitoring_node_count" {
@@ -41,37 +41,43 @@ variable "monitoring_node_count" {
 }
 
 variable "pki_node_type" {
-  description = "Instance type for PKI nodes (dedicated for cryptographic operations)"
+  description = "Instance type for PKI nodes"
   type        = string
-  default     = "g6-dedicated-2"
+  default     = "g6-standard-2"
 }
 
 variable "app_node_type" {
   description = "Instance type for application nodes"
   type        = string
-  default     = "g6-standard-4"
+  default     = "g6-standard-2"
 }
 
 variable "monitoring_node_type" {
   description = "Instance type for monitoring nodes"
   type        = string
-  default     = "g6-standard-2"
+  default     = "g6-standard-1"
 }
 
 variable "tags" {
   description = "Tags for all Linode resources"
   type        = list(string)
-  default     = ["mtls-baas", "production", "pki"]
+  default     = ["mtls-baas", "dev"]
 }
 
 variable "cert_service_domain" {
   description = "Public domain for the Certificate Service API"
   type        = string
-  default     = "certs.baas.io"
+  default     = "certs.ricardolins.dev.br"
+}
+
+variable "base_domain" {
+  description = "Base domain for all services"
+  type        = string
+  default     = "ricardolins.dev.br"
 }
 
 variable "high_availability" {
   description = "Enable LKE HA control plane"
   type        = bool
-  default     = true
+  default     = false
 }

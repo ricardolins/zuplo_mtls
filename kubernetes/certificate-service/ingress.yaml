@@ -10,18 +10,18 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-body-size: "1m"
     nginx.ingress.kubernetes.io/rate-limit: "100"
     nginx.ingress.kubernetes.io/rate-limit-window: "1m"
-    # Enable mTLS on the ingress for the /admin endpoint
-    nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
+    # mTLS enforcement: on=required, optional=allow both, off=disabled
+    nginx.ingress.kubernetes.io/auth-tls-verify-client: "optional"
     nginx.ingress.kubernetes.io/auth-tls-secret: "pki-system/step-ca-root-cert"
     nginx.ingress.kubernetes.io/auth-tls-verify-depth: "2"
     nginx.ingress.kubernetes.io/auth-tls-pass-certificate-to-upstream: "true"
 spec:
   tls:
     - hosts:
-        - certs.baas.io
+        - certs.ricardolins.dev.br
       secretName: certificate-service-tls
   rules:
-    - host: certs.baas.io
+    - host: certs.ricardolins.dev.br
       http:
         paths:
           - path: /v1
