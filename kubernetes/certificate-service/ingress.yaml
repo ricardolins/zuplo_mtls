@@ -8,9 +8,15 @@ metadata:
     cert-manager.io/cluster-issuer: "step-ca-internal"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "1m"
-    nginx.ingress.kubernetes.io/rate-limit: "100"
+
+    # IP whitelist — only your IP can reach this service
+    nginx.ingress.kubernetes.io/whitelist-source-range: "177.181.2.218/32"
+
+    # Rate limiting per IP
+    nginx.ingress.kubernetes.io/rate-limit: "60"
     nginx.ingress.kubernetes.io/rate-limit-window: "1m"
-    # mTLS enforcement: on=required, optional=allow both, off=disabled
+
+    # mTLS: optional so API Key bootstrap calls pass through without cert
     nginx.ingress.kubernetes.io/auth-tls-verify-client: "optional"
     nginx.ingress.kubernetes.io/auth-tls-secret: "pki-system/step-ca-root-cert"
     nginx.ingress.kubernetes.io/auth-tls-verify-depth: "2"

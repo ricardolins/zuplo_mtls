@@ -12,7 +12,7 @@ variable "kubernetes_version" {
 
 variable "high_availability" {
   type    = bool
-  default = true
+  default = false
 }
 
 variable "tags" {
@@ -42,4 +42,9 @@ variable "monitoring_node_type" {
 
 variable "monitoring_node_count" {
   type = number
+}
+
+variable "allowed_ip" {
+  description = "IP allowed to access the Kubernetes API server"
+  type        = string
 }

@@ -4,6 +4,12 @@ variable "linode_token" {
   sensitive   = true
 }
 
+variable "allowed_ip" {
+  description = "Your public IP — ONLY this IP can access the cluster API, ingress and all services"
+  type        = string
+  default     = "177.181.2.218"
+}
+
 variable "region" {
   description = "Linode region for the LKE cluster"
   type        = string

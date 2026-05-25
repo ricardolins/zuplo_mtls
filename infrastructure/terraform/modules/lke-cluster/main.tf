@@ -6,6 +6,14 @@ resource "linode_lke_cluster" "main" {
 
   control_plane {
     high_availability = var.high_availability
+
+    # Kubernetes API server accessible ONLY from your IP
+    acl {
+      enabled = true
+      addresses {
+        ipv4 = ["${var.allowed_ip}/32"]
+      }
+    }
   }
 
   # Dedicated pool for PKI workloads (step-ca, cert-manager)
@@ -20,6 +28,7 @@ resource "linode_lke_cluster" "main" {
 
     taint {
       key    = "dedicated"
+      operator = "Equal"
       value  = "pki"
       effect = "NoSchedule"
     }
