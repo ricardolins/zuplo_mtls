@@ -19,6 +19,7 @@ secrets/
 # Kubeconfig
 *.kubeconfig
 kubeconfig
+.kubeconfig-lke
 .kube/
 
 # Node.js

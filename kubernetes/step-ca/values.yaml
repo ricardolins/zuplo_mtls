@@ -4,37 +4,12 @@
 ca:
   name: "BaaS mTLS Root CA"
   address: ":9000"
-  dns:
-    - step-ca-svc
-    - step-ca-svc.pki-system
-    - step-ca-svc.pki-system.svc.cluster.local
-    - ca.ricardolins.dev.br
+  dns: "step-ca-svc,step-ca-svc.pki-system,step-ca-svc.pki-system.svc.cluster.local,ca.ricardolins.dev.br"
   db:
-    type: badgerV2
-    dataSource: /home/step/db
+    enabled: true
+    persistent: false
 
-provisioners:
-  - name: cert-manager
-    type: JWK
-    options:
-      minTLSDur: 5m
-      maxTLSDur: 90d
-      defaultTLSDur: 90d
-  - name: acme
-    type: ACME
-  - name: x5c-provisioner
-    type: X5C
-    options:
-      roots: []
-
-persistence:
-  enabled: true
-  storageClass: "linode-block-storage-retain"
-  size: 10Gi
-  accessModes:
-    - ReadWriteOnce
-
-# Dev/test: single node, no taint required
+# Dev/test: single node
 nodeSelector:
   role: pki
 
@@ -59,26 +34,7 @@ service:
   port: 9000
   targetPort: 9000
 
-ocsp:
-  enabled: true
-  port: 8080
-
-crl:
-  enabled: true
-  cacheDuration: 24h
-  renewBefore: 6h
-
 metrics:
   enabled: true
   path: /metrics
   port: 9100
-
-securityContext:
-  runAsNonRoot: true
-  runAsUser: 1000
-  fsGroup: 1000
-  readOnlyRootFilesystem: true
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop:
-      - ALL

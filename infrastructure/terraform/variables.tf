@@ -25,7 +25,7 @@ variable "cluster_name" {
 variable "kubernetes_version" {
   description = "Kubernetes version on LKE"
   type        = string
-  default     = "1.31"
+  default     = "1.34"
 }
 
 variable "pki_node_count" {

@@ -28,7 +28,6 @@ resource "linode_lke_cluster" "main" {
 
     taint {
       key    = "dedicated"
-      operator = "Equal"
       value  = "pki"
       effect = "NoSchedule"
     }
