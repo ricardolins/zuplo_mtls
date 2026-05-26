@@ -1,17 +1,6 @@
 {
   "policies": [
     {
-      "name": "ip-allowlist-policy",
-      "policyType": "custom-code-inbound",
-      "handler": {
-        "export": "ipAllowlistPolicy",
-        "module": "$import(./modules/ip-allowlist-policy)",
-        "options": {
-          "allowedIps": ["177.181.2.218"]
-        }
-      }
-    },
-    {
       "name": "zuplo-api-key-auth-policy",
       "policyType": "api-key-inbound",
       "handler": {
