@@ -5,7 +5,11 @@
       "policyType": "api-key-inbound",
       "handler": {
         "export": "ApiKeyInboundPolicy",
-        "module": "$import(@zuplo/runtime)"
+        "module": "$import(@zuplo/runtime)",
+        "options": {
+          "authHeader": "X-API-Key",
+          "authScheme": ""
+        }
       }
     },
     {
