@@ -7,13 +7,16 @@ const config: ZudokuConfig = {
   site: {
     title: "BaaS mTLS Platform",
   },
+  docs: {
+    files: "/pages/**/*.{md,mdx}",
+  },
   navigation: [
     {
       type: "category",
       label: "Documentation",
       items: [
-        { type: "doc", label: "Getting Started", file: "pages/getting-started" },
-        { type: "doc", label: "Certificate Guide", file: "pages/certificate-guide" },
+        { type: "link", label: "Getting Started", to: "/getting-started" },
+        { type: "link", label: "Certificate Guide", to: "/certificate-guide" },
       ],
     },
     {
@@ -29,9 +32,7 @@ const config: ZudokuConfig = {
       path: "/api-reference",
     },
   ],
-  apiKeys: {
-    enabled: true,
-  },
+  redirects: [{ from: "/", to: "/api-reference" }],
 };
 
 export default config;
