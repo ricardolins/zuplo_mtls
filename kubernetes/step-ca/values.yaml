@@ -4,7 +4,7 @@
 ca:
   name: "BaaS mTLS Root CA"
   address: ":9000"
-  dns: "step-ca-svc,step-ca-svc.pki-system,step-ca-svc.pki-system.svc.cluster.local,ca.ricardolins.dev.br"
+  dns: "step-ca-svc,step-ca-svc.pki-system,step-ca-svc.pki-system.svc.cluster.local,ca.yourdomain.com"
   db:
     enabled: true
     persistent: false

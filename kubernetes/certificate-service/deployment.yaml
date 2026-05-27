@@ -36,7 +36,7 @@ spec:
 
       containers:
         - name: certificate-service
-          image: ghcr.io/ricardolins/zuplo-mtls/certificate-service:latest
+          image: your-registry/certificate-service:latest
           imagePullPolicy: Always
           ports:
             - name: http

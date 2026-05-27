@@ -1,3 +1,6 @@
+# Zuplo build artifacts
+zuplo/.zuplo/
+
 # Terraform
 infrastructure/terraform/.terraform/
 infrastructure/terraform/.terraform.lock.hcl

@@ -7,7 +7,7 @@ variable "linode_token" {
 variable "allowed_ip" {
   description = "Your public IP — ONLY this IP can access the cluster API, ingress and all services"
   type        = string
-  default     = "177.181.2.218"
+  # Set in terraform.tfvars — do not hardcode here
 }
 
 variable "region" {
@@ -71,15 +71,15 @@ variable "tags" {
 }
 
 variable "cert_service_domain" {
-  description = "Public domain for the Certificate Service API"
+  description = "Public domain for the Certificate Service API (e.g. certs.yourdomain.com)"
   type        = string
-  default     = "certs.ricardolins.dev.br"
+  # Set in terraform.tfvars
 }
 
 variable "base_domain" {
-  description = "Base domain for all services"
+  description = "Base domain for all services (e.g. yourdomain.com)"
   type        = string
-  default     = "ricardolins.dev.br"
+  # Set in terraform.tfvars
 }
 
 variable "high_availability" {

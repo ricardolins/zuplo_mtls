@@ -10,8 +10,8 @@ Este documento cobre tudo que foi configurado e corrigido no Zuplo: projeto, pol
 Partner/Client
     │
     ▼
-https://mtls-main-6012973.zuplo.app   ← API Gateway (Cloudflare Edge)
-https://mtls-main-6012973.zuplo.site  ← Developer Portal (Zudoku/SSR)
+https://your-project.zuplo.app   ← API Gateway (Cloudflare Edge)
+https://your-project.zuplo.site  ← Developer Portal (Zudoku/SSR)
     │
     ▼
 Políticas inbound (autenticação, validação)
@@ -21,10 +21,10 @@ Políticas inbound (autenticação, validação)
 ```
 
 **Contas e projeto:**
-- Conta Zuplo: `turquoise_dear_chipmunk`
+- Conta Zuplo: `your-zuplo-account`
 - Projeto: `mtls`
 - Environment: `main`
-- API Key Bucket (produção): `bckt_9bbsIcTU4Ow8Mz25EIvKCS5Zb3NQbRwC`
+- API Key Bucket (produção): `your-bucket-id`
 
 ---
 
@@ -75,7 +75,7 @@ node_modules/.bin/zuplo login
 
 # Verificar quem está autenticado
 node_modules/.bin/zuplo whoami
-# → Authenticated as auth0|68c82cd07c755f4851a6f122
+# → Authenticated as auth0|your-user-id
 
 # Ver todos os comandos disponíveis
 node_modules/.bin/zuplo --help
@@ -87,20 +87,20 @@ node_modules/.bin/zuplo --help
 # Deploy para o environment "main"
 # (Em ambientes não-interativos, --account e --project são obrigatórios)
 node_modules/.bin/zuplo deploy \
-  --account turquoise_dear_chipmunk \
+  --account your-zuplo-account \
   --project mtls
 
 # Com verbose para debug
 node_modules/.bin/zuplo deploy \
-  --account turquoise_dear_chipmunk \
+  --account your-zuplo-account \
   --project mtls \
   -vv
 ```
 
 **Output esperado:**
 ```
-- Deploying the 'main' environment to 'mtls' on account 'turquoise_dear_chipmunk'...
-✔ Deployed to https://mtls-main-6012973.zuplo.app (XX/250)
+- Deploying the 'main' environment to 'mtls' on account 'your-zuplo-account'...
+✔ Deployed to https://your-project.zuplo.app (XX/250)
 ```
 
 O número `(XX/250)` é o índice do build — quanto mais baixo, mais rápido foi o build.
@@ -109,7 +109,7 @@ O número `(XX/250)` é o índice do build — quanto mais baixo, mais rápido f
 
 ```bash
 # Listar projetos deployados
-node_modules/.bin/zuplo list --account turquoise_dear_chipmunk
+node_modules/.bin/zuplo list --account your-zuplo-account
 
 # Rodar localmente (dev mode)
 node_modules/.bin/zuplo dev
@@ -118,20 +118,20 @@ node_modules/.bin/zuplo dev
 node_modules/.bin/zuplo docs
 
 # Gerenciar variáveis de ambiente
-node_modules/.bin/zuplo variable list --account turquoise_dear_chipmunk --project mtls
+node_modules/.bin/zuplo variable list --account your-zuplo-account --project mtls
 node_modules/.bin/zuplo variable set MY_VAR "value" --account ... --project ...
 
 # Gerenciar API Key Buckets
-node_modules/.bin/zuplo bucket list --account turquoise_dear_chipmunk --project mtls
+node_modules/.bin/zuplo bucket list --account your-zuplo-account --project mtls
 
 # Gerenciar túneis (para conectar gateway ao cluster privado)
-node_modules/.bin/zuplo tunnel list --account turquoise_dear_chipmunk --project mtls
+node_modules/.bin/zuplo tunnel list --account your-zuplo-account --project mtls
 
 # Gerenciar certificados CA (para mTLS inbound)
-node_modules/.bin/zuplo ca-certificate list --account turquoise_dear_chipmunk --project mtls
+node_modules/.bin/zuplo ca-certificate list --account your-zuplo-account --project mtls
 
 # Informações do projeto
-node_modules/.bin/zuplo info --account turquoise_dear_chipmunk --project mtls
+node_modules/.bin/zuplo info --account your-zuplo-account --project mtls
 ```
 
 ---
@@ -299,7 +299,7 @@ O Zudoku é o framework de developer portal do Zuplo. Quando incluído no projet
 https://{projeto}-{environment}-{id}.zuplo.site
 ```
 
-Para este projeto: `https://mtls-main-6012973.zuplo.site`
+Para este projeto: `https://your-project.zuplo.site`
 
 ### Como o build funciona
 
@@ -432,10 +432,10 @@ Após o deploy bem-sucedido, as seguintes rotas ficam disponíveis:
 
 | URL | Descrição |
 |-----|-----------|
-| `https://mtls-main-6012973.zuplo.site/` | Redireciona para `/api-reference` |
-| `https://mtls-main-6012973.zuplo.site/api-reference` | Referência completa de API (gerada do OpenAPI) |
-| `https://mtls-main-6012973.zuplo.site/getting-started` | Guia de início rápido |
-| `https://mtls-main-6012973.zuplo.site/certificate-guide` | Guia do ciclo de vida dos certificados |
+| `https://your-project.zuplo.site/` | Redireciona para `/api-reference` |
+| `https://your-project.zuplo.site/api-reference` | Referência completa de API (gerada do OpenAPI) |
+| `https://your-project.zuplo.site/getting-started` | Guia de início rápido |
+| `https://your-project.zuplo.site/certificate-guide` | Guia do ciclo de vida dos certificados |
 
 ### Desenvolvimento local do portal
 
@@ -463,19 +463,19 @@ node_modules/.bin/zuplo docs
 
 ## API Keys — Gerenciamento via CLI
 
-O bucket de API Keys de produção (`bckt_9bbsIcTU4Ow8Mz25EIvKCS5Zb3NQbRwC`) é onde ficam as chaves dos tenants.
+O bucket de API Keys de produção (`your-bucket-id`) é onde ficam as chaves dos tenants.
 
 ```bash
 # Listar buckets
 node_modules/.bin/zuplo bucket list \
-  --account turquoise_dear_chipmunk \
+  --account your-zuplo-account \
   --project mtls
 
 # Criar uma API Key para um novo tenant
 node_modules/.bin/zuplo bucket create-key \
-  --account turquoise_dear_chipmunk \
+  --account your-zuplo-account \
   --project mtls \
-  --bucket bckt_9bbsIcTU4Ow8Mz25EIvKCS5Zb3NQbRwC \
+  --bucket your-bucket-id \
   --label "Tenant ACME Corp" \
   --consumer "acme-corp"
 ```
@@ -486,7 +486,7 @@ A chave gerada tem o formato `zpka_...` e é fornecida ao parceiro para o fluxo 
 
 ## Zuplo Tunnel (pendente)
 
-O cluster LKE está protegido pelo Linode Cloud Firewall — só aceita conexões de `177.181.2.218/32`. O Zuplo (que roda na Cloudflare) não consegue alcançar o Certificate Service diretamente.
+O cluster LKE está protegido pelo Linode Cloud Firewall — só aceita conexões de `YOUR_IP/32`. O Zuplo (que roda na Cloudflare) não consegue alcançar o Certificate Service diretamente.
 
 **Solução necessária: Zuplo Tunnel**
 
@@ -495,7 +495,7 @@ O tunnel instala um agente no cluster que faz conexão *outbound* para o Zuplo �
 ```bash
 # Criar um tunnel
 node_modules/.bin/zuplo tunnel create \
-  --account turquoise_dear_chipmunk \
+  --account your-zuplo-account \
   --project mtls \
   --name cert-service-tunnel
 
@@ -504,7 +504,7 @@ kubectl apply -f tunnel-agent.yaml
 
 # Listar tunnels ativos
 node_modules/.bin/zuplo tunnel list \
-  --account turquoise_dear_chipmunk \
+  --account your-zuplo-account \
   --project mtls
 ```
 
@@ -516,8 +516,8 @@ Após o tunnel estar ativo, o `CERT_SERVICE_URL` é trocado pela URL interna do 
 
 A proteção de acesso **não está no gateway Zuplo** (que é público na Cloudflare). A proteção está na **infraestrutura Linode**:
 
-- **Linode Cloud Firewall (`24456015`)** — bloqueio total de inbound, exceto portas 80/443/6443 do IP `177.181.2.218/32`
-- **LKE ACL** — control plane do Kubernetes só aceita `177.181.2.218/32`
+- **Linode Cloud Firewall (`your-firewall-id`)** — bloqueio total de inbound, exceto portas 80/443/6443 do IP `YOUR_IP/32`
+- **LKE ACL** — control plane do Kubernetes só aceita `YOUR_IP/32`
 - **Zuplo gateway** — público (deve ser assim para parceiros acessarem)
 
 O Zuplo faz a autenticação/autorização via políticas (API Key e mTLS), mas o acesso ao backend real só funciona quando o Zuplo conseguir alcançar o cluster (via Tunnel).
@@ -526,12 +526,12 @@ O Zuplo faz a autenticação/autorização via políticas (API Key e mTLS), mas 
 
 ## Checklist de Status
 
-- [x] Gateway Zuplo deployado (`https://mtls-main-6012973.zuplo.app`)
-- [x] Developer Portal no ar (`https://mtls-main-6012973.zuplo.site`)
+- [x] Gateway Zuplo deployado (`https://your-project.zuplo.app`)
+- [x] Developer Portal no ar (`https://your-project.zuplo.site`)
 - [x] Políticas configuradas (API Key auth, mTLS inbound, rate limit)
 - [x] Rotas OpenAPI completas
 - [x] Páginas de documentação funcionando
-- [x] Linode Firewall bloqueando tudo exceto `177.181.2.218/32`
+- [x] Linode Firewall bloqueando tudo exceto `YOUR_IP/32`
 - [ ] Certificate Service deployado no LKE
 - [ ] Zuplo Tunnel configurado (gateway → cluster)
 - [ ] Variáveis `CERT_SERVICE_URL` e `BACKEND_API_URL` apontando para túnel

@@ -53,7 +53,7 @@ This solves the **bootstrap problem**: *how do you request an mTLS certificate i
 
 1. Go to https://portal.zuplo.com
 2. Create new project: **"baas-mtls-gateway"**
-3. Connect your GitHub repo (`ricardolins/zuplo_mtls`)
+3. Connect your GitHub repo (`your-org/your-repo`)
 
 ### 2. Configure the Developer Portal pages
 

@@ -56,8 +56,8 @@ app_node_count        = 1
 monitoring_node_type  = "g6-standard-1"
 monitoring_node_count = 1
 
-cert_service_domain   = "certs.ricardolins.dev.br"
-base_domain           = "ricardolins.dev.br"
+cert_service_domain   = "certs.yourdomain.com"
+base_domain           = "yourdomain.com"
 
 tags = ["mtls-baas", "dev"]
 EOF
@@ -123,8 +123,8 @@ deploy_cert_service() {
   if command -v docker &>/dev/null; then
     info "Building Certificate Service Docker image..."
     cd "$ROOT_DIR/certificate-service"
-    docker build -t ghcr.io/ricardolins/zuplo-mtls/certificate-service:latest .
-    warn "Push the image: docker push ghcr.io/ricardolins/zuplo-mtls/certificate-service:latest"
+    docker build -t your-registry/certificate-service:latest .
+    warn "Push the image: docker push your-registry/certificate-service:latest"
     cd "$ROOT_DIR"
   else
     warn "Docker not found — skipping image build. Push the image manually before continuing."
@@ -159,13 +159,13 @@ print_dns_instructions() {
   echo ""
   echo -e "${YELLOW}ACTION REQUIRED — Create DNS records:${NC}"
   echo ""
-  echo "  In your DNS provider (ricardolins.dev.br), add A records:"
+  echo "  In your DNS provider (yourdomain.com), add A records:"
   echo ""
-  echo "    certs.ricardolins.dev.br  →  $LB_IP"
-  echo "    ca.ricardolins.dev.br     →  $LB_IP"
+  echo "    certs.yourdomain.com  →  $LB_IP"
+  echo "    ca.yourdomain.com     →  $LB_IP"
   echo ""
   echo "  Then test:"
-  echo "    curl https://certs.ricardolins.dev.br/v1/health"
+  echo "    curl https://certs.yourdomain.com/v1/health"
   echo ""
   echo -e "${YELLOW}Zuplo configuration:${NC}"
   echo "  Set env var CERT_SERVICE_URL = http://certificate-service-svc.certificate-service"
@@ -178,7 +178,7 @@ print_dns_instructions() {
 echo ""
 echo -e "${BLUE}╔══════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║     mTLS BaaS Platform — Full Deployment         ║${NC}"
-echo -e "${BLUE}║     Domain: ricardolins.dev.br                   ║${NC}"
+echo -e "${BLUE}║     Domain: yourdomain.com                   ║${NC}"
 echo -e "${BLUE}║     Region: br-gru (São Paulo)                   ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════════╝${NC}"
 echo ""

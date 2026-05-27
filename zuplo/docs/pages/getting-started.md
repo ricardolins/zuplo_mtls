@@ -19,7 +19,7 @@ All API calls after the bootstrap phase use mutual TLS (mTLS) — both you and t
 ## Step 1 — Register your organization
 
 ```bash
-curl -X POST https://mtls-main-6012973.zuplo.app/v1/tenants \
+curl -X POST https://your-project.zuplo.app/v1/tenants \
   -H "Content-Type: application/json" \
   -d '{ "name": "Acme Corp", "email": "admin@acme.com" }'
 ```
@@ -32,7 +32,7 @@ Your API Key looks like `zpka_…`.
 ## Step 3 — Issue your first mTLS certificate
 
 ```bash
-curl -X POST https://mtls-main-6012973.zuplo.app/v1/certificates \
+curl -X POST https://your-project.zuplo.app/v1/certificates \
   -H "X-API-Key: zpka_YOUR_KEY_HERE" \
   -H "Content-Type: application/json" \
   -d '{
@@ -49,7 +49,7 @@ Store the private key securely — it is never stored on our servers.
 
 ```bash
 curl --cert client.crt --key client.key \
-  https://mtls-main-6012973.zuplo.app/v1/api/your-endpoint
+  https://your-project.zuplo.app/v1/api/your-endpoint
 ```
 
 ## Next steps

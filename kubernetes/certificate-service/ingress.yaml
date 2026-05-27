@@ -10,7 +10,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-body-size: "1m"
 
     # IP whitelist — only your IP can reach this service
-    nginx.ingress.kubernetes.io/whitelist-source-range: "177.181.2.218/32"
+    nginx.ingress.kubernetes.io/whitelist-source-range: "YOUR_IP/32"
 
     # Rate limiting per IP
     nginx.ingress.kubernetes.io/rate-limit: "60"
@@ -24,10 +24,10 @@ metadata:
 spec:
   tls:
     - hosts:
-        - certs.ricardolins.dev.br
+        - certs.yourdomain.com
       secretName: certificate-service-tls
   rules:
-    - host: certs.ricardolins.dev.br
+    - host: certs.yourdomain.com
       http:
         paths:
           - path: /v1

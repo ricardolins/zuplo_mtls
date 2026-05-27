@@ -25,7 +25,7 @@ module "networking" {
   allowed_ip   = var.allowed_ip
 }
 
-# Attach firewall to every LKE node — blocks all inbound traffic not from 177.181.2.218/32
+# Attach firewall to every LKE node — blocks all inbound traffic not from var.allowed_ip
 resource "linode_firewall_device" "lke_nodes" {
   for_each    = toset([for id in module.lke_cluster.node_instance_ids : tostring(id)])
   firewall_id = module.networking.firewall_id
